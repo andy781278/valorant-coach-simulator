@@ -1,5 +1,5 @@
-// v7.7 — Spawn barrier & mid expansion
-(function(){
+// v7.8 — Spawn barrier & mid expansion
+window.addEventListener('load', ()=>{
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
   const timerEl = document.getElementById('timer');
@@ -916,4 +916,4 @@
 
   startBtn.addEventListener('click', ()=>{ overlay.style.display='none'; startGame(true); });
 
-})();
+});
