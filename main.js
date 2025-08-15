@@ -2,7 +2,9 @@
 (function(){
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
-  const hud = document.getElementById('hud');
+  const timerEl = document.getElementById('timer');
+  const scoreEl = document.getElementById('score');
+  const remainEl = document.getElementById('remaining');
   const statusEl = document.getElementById('status');
   const overlay = document.getElementById('overlay');
   const startBtn = document.getElementById('startBtn');
@@ -607,7 +609,7 @@
         }
         ctx.fillStyle=this.dead?'#45464d':this.color;
         ctx.beginPath(); ctx.arc(this.x,this.y,AGENT_RADIUS,0,Math.PI*2); ctx.fill();
-        ctx.lineWidth=2; ctx.strokeStyle=this.special?'#FFD23F':(this.team===TEAM_ATTACKER?'#FF5A5A':'#3EA0FF'); ctx.stroke();
+        ctx.lineWidth=2; ctx.strokeStyle=this.team===TEAM_ATTACKER?'#FF5A5A':'#3EA0FF'; ctx.stroke();
         if(this.hasBomb){ ctx.fillStyle='#FFD23F'; ctx.beginPath(); ctx.arc(this.x,this.y,5,0,Math.PI*2); ctx.fill(); }
         if(this.alive){
           const w=20,h=4;
@@ -883,7 +885,9 @@
     // HUD
     function fmt(t){ t=Math.max(0,Math.ceil(t)); const m=(t/60)|0, s=t%60|0; return m+':' + (s<10?'0':'')+s; }
     const att=attackers.filter(a=>a.alive).length, def=defenders.filter(a=>a.alive).length;
-    hud.textContent = `ATT: ${att}/10  |  DEF: ${def}/10  |  Timer: ${fmt(roundTime)}  |  Score: ${attackerWins}-${defenderWins}`;
+    timerEl.textContent = fmt(roundTime);
+    scoreEl.textContent = `Score: ${attackerWins}-${defenderWins}`;
+    remainEl.textContent = `ATT: ${att}/5  |  DEF: ${def}/5`;
     if(preRoundTime>0) statusEl.textContent=`Prep: ${preRoundTime.toFixed(1)}s`;
     else if(bomb.state==='planted') statusEl.textContent=`Bomb: ${(TIME_TO_EXPLODE-bomb.timer).toFixed(1)}s`;
     else if(bomb.state==='defused') statusEl.textContent='Bomb defused!';
