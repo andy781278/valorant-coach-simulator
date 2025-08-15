@@ -18,6 +18,7 @@
   const AI_SPEED = 170;
   const BULLET_SPEED = 700, BULLET_RADIUS=3, BULLET_LIFETIME=2.0, BULLET_DAMAGE=28;
   const SHOOT_COOLDOWN=0.55, DETECTION_RANGE=540;
+  const BULLET_INACCURACY = 0.1; // radians of random spread
   const ROUND_TIME=90, PLANT_TIME=3, DEFUSE_TIME=4, TIME_TO_EXPLODE=30;
   const TEAM_ATTACKER='ATT', TEAM_DEFENDER='DEF';
   const DOOR_T = 8; // tiles; >= 96px openings
@@ -71,8 +72,8 @@
     attackerSpawnRect = {x0:sx0, y0:H-18, x1:sx1, y1:H-6};
 
     // South connector to mid
-    carveRect(W*0.44, H-68, W*0.56, H-18);
-    attackerDoor = {x0:W*0.44, y0:H-70, x1:W*0.56, y1:H-68}; // closed initially
+    carveRect(W*0.44, H-68, W*0.56, H-20);
+    attackerDoor = {x0:W*0.44, y0:H-20, x1:W*0.56, y1:H-18}; // closed initially
 
     // Mid hub
     carveRect(W*0.36, H*0.55, W*0.64, H*0.70);
@@ -260,8 +261,9 @@
 
   // ---- Game State
   let attackers=[], defenders=[], agents=[], bullets=[];
-  const bomb={ state:'idle', carrier:null, siteIndex:null, plantProgress:0, defuseProgress:0, timer:0 };
-  let attackerSiteIndex=0, lastFightTime=-999, lastFightPos={x:0,y:0}, roundTime=ROUND_TIME;
+  const bomb={ state:'idle', carrier:null, siteIndex:null, plantProgress:0, defuseProgress:0, defuser:null, timer:0 };
+  let attackerSiteIndex=-1, attackerStrategy='rush', defaultPhase=null, strategyTimer=0,
+      lastFightTime=-999, lastFightPos={x:0,y:0}, roundTime=ROUND_TIME;
   let gameRunning=false, lastTime=0, roundOver=false, resultMessage='';
 
   // spectator camera state
@@ -346,9 +348,9 @@
     get alive(){ return !this.dead; }
     shoot(){
       if(this.dead||this.shootCooldown>0) return;
-      const t=findNearestEnemy(this); if(!t) return;
-      const ang=Math.atan2(t.y-this.y,t.x-this.x);
-      bullets.push({x:this.x,y:this.y,dx:Math.cos(ang),dy:Math.sin(ang),life:BULLET_LIFETIME,owner:this});
+        const t=findNearestEnemy(this); if(!t) return;
+        const ang=Math.atan2(t.y-this.y,t.x-this.x) + (Math.random()-0.5)*BULLET_INACCURACY;
+        bullets.push({x:this.x,y:this.y,dx:Math.cos(ang),dy:Math.sin(ang),life:BULLET_LIFETIME,owner:this});
       this.shootCooldown=SHOOT_COOLDOWN;
       lastFightTime=performance.now()/1000; lastFightPos={x:(this.x+t.x)/2, y:(this.y+t.y)/2};
     }
@@ -365,21 +367,47 @@
       if(!circleCollides(this.x+sx, this.y+sy, AGENT_RADIUS)){ this.x+=sx; this.y+=sy; return true; }
       return false;
     }
-    update(dt){
-      if(this.dead) return;
-      const t=findNearestEnemy(this);
-      const engaged = !!(t && ((this.x-t.x)**2+(this.y-t.y)**2) < DETECTION_RANGE*DETECTION_RANGE && losFree(this.x,this.y,t.x,t.y));
+      update(dt){
+        if(this.dead) return;
+        if(this.team===TEAM_DEFENDER && bomb.state!=='planted'){
+          const nowSec=performance.now()/1000;
+          if(nowSec - lastFightTime < 0.2){
+            const ns=nearestSite(lastFightPos);
+            if(this.siteIndex!==ns){ this.siteIndex=ns; this.repathTimer=0; }
+          }
+        }
+        const t=findNearestEnemy(this);
+        const engaged = !!(t && ((this.x-t.x)**2+(this.y-t.y)**2) < DETECTION_RANGE*DETECTION_RANGE && losFree(this.x,this.y,t.x,t.y));
 
       // Objective
       let target={x:this.x,y:this.y};
       if(this.team===TEAM_ATTACKER){
-        if(bomb.state==='planted'){ const s=sites[bomb.siteIndex]; target={x:s.x + this.form.ox*0.35, y:s.y + this.form.oy*0.35}; }
-        else if(this.hasBomb){ const s=sites[attackerSiteIndex]; target={x:s.x, y:s.y}; }
-        else if(bomb.carrier && bomb.carrier.alive){ target={x:bomb.carrier.x + this.form.ox*0.3, y:bomb.carrier.y + this.form.oy*0.3}; }
-        else { const s=sites[attackerSiteIndex]; target={x:s.x + this.form.ox*0.6, y:s.y + this.form.oy*0.6}; }
+        if(bomb.state==='planted'){
+          const s=sites[bomb.siteIndex];
+          target={x:s.x + this.form.ox*0.35, y:s.y + this.form.oy*0.35};
+        } else if(attackerStrategy==='rush'){
+          const s=sites[attackerSiteIndex];
+          if(this.hasBomb) target={x:s.x, y:s.y};
+          else target={x:s.x + this.form.ox*0.6, y:s.y + this.form.oy*0.6};
+        } else {
+          if(defaultPhase==='take'){
+            const ds=sites[this.defaultSite];
+            target={x:ds.x + this.form.ox*0.6, y:ds.y + this.form.oy*0.6};
+          } else {
+            const s=sites[attackerSiteIndex];
+            if(this.hasBomb) target={x:s.x, y:s.y};
+            else target={x:s.x + this.form.ox*0.6, y:s.y + this.form.oy*0.6};
+          }
+        }
       } else {
-        if(bomb.state==='planted'){ const s=sites[bomb.siteIndex]; target={x:s.x + this.form.ox*0.4, y:s.y + this.form.oy*0.4}; }
-        else { const idx = (this.siteIndex!=null)?this.siteIndex:nearestSite(this); const s=sites[idx]; target={x:s.x + this.form.ox*0.6, y:s.y + this.form.oy*0.6}; }
+        if(bomb.state==='planted'){
+          const s=sites[bomb.siteIndex];
+          target={x:s.x + this.form.ox*0.4, y:s.y + this.form.oy*0.4};
+        } else {
+          const idx = (this.siteIndex!=null)?this.siteIndex:nearestSite(this);
+          const s=sites[idx];
+          target={x:s.x + this.form.ox*0.6, y:s.y + this.form.oy*0.6};
+        }
       }
 
       // Repathing + micro jitter
@@ -449,9 +477,9 @@
       this.shootCooldown-=dt; if(this.shootCooldown<0) this.shootCooldown=0;
       if(engaged && this.shootCooldown<=0) this.shoot();
 
-      // Plant / Defuse
-      if(this.team===TEAM_ATTACKER && this.hasBomb){
-        const s=sites[attackerSiteIndex];
+        // Plant / Defuse
+        if(this.team===TEAM_ATTACKER && this.hasBomb && attackerSiteIndex>=0){
+          const s=sites[attackerSiteIndex];
         const inside = ((this.x-s.x)**2+(this.y-s.y)**2) < (s.r*s.r);
         if(inside){
           if(bomb.state==='idle'){ bomb.state='planting'; bomb.carrier=this; bomb.siteIndex=attackerSiteIndex; }
@@ -461,23 +489,31 @@
             return;
           }
         }
-      } else if (this.team===TEAM_DEFENDER && bomb.state==='planted'){
-        const s=sites[bomb.siteIndex];
-        const inside = ((this.x-s.x)**2+(this.y-s.y)**2) < (s.r*s.r);
-        if(inside){
-          bomb.defuseProgress += dt/DEFUSE_TIME;
-          if(bomb.defuseProgress>=1){ bomb.state='defused'; bomb.defuseProgress=0; }
+        } else if (this.team===TEAM_DEFENDER && bomb.state==='planted'){
+          const s=sites[bomb.siteIndex];
+          const inside = ((this.x-s.x)**2+(this.y-s.y)**2) < (s.r*s.r);
+          if(inside){
+            bomb.defuseProgress += dt/DEFUSE_TIME;
+            bomb.defuser = this;
+            if(bomb.defuseProgress>=1){ bomb.state='defused'; bomb.defuseProgress=0; bomb.defuser=null; }
+          }
         }
-      }
 
       this.wasEngaged=engaged;
     }
-    draw(){
-      ctx.fillStyle=this.dead?'#45464d':this.color;
-      ctx.beginPath(); ctx.arc(this.x,this.y,AGENT_RADIUS,0,Math.PI*2); ctx.fill();
-      ctx.lineWidth=2; ctx.strokeStyle=this.team===TEAM_ATTACKER?'#4EE1C1':'#3EA0FF'; ctx.stroke();
-      if(this.hasBomb){ ctx.fillStyle='#FFD23F'; ctx.beginPath(); ctx.arc(this.x,this.y-AGENT_RADIUS-6,5,0,Math.PI*2); ctx.fill(); }
-    }
+      draw(){
+        ctx.fillStyle=this.dead?'#45464d':this.color;
+        ctx.beginPath(); ctx.arc(this.x,this.y,AGENT_RADIUS,0,Math.PI*2); ctx.fill();
+        ctx.lineWidth=2; ctx.strokeStyle=this.team===TEAM_ATTACKER?'#4EE1C1':'#3EA0FF'; ctx.stroke();
+        if(this.hasBomb){ ctx.fillStyle='#FFD23F'; ctx.beginPath(); ctx.arc(this.x,this.y-AGENT_RADIUS-6,5,0,Math.PI*2); ctx.fill(); }
+        if(this.alive){
+          const w=20,h=4;
+          ctx.fillStyle='#000';
+          ctx.fillRect(this.x-w/2,this.y+AGENT_RADIUS+6,w,h);
+          ctx.fillStyle=this.team===TEAM_ATTACKER?'#4EE1C1':'#3EA0FF';
+          ctx.fillRect(this.x-w/2,this.y+AGENT_RADIUS+6,w*(this.hp/100),h);
+        }
+      }
   }
 
   // ---- Bullets
@@ -559,9 +595,12 @@
 
   function startGame(){
     attackers=[]; defenders=[]; agents=[]; bullets=[];
-    bomb.state='idle'; bomb.carrier=null; bomb.siteIndex=null; bomb.plantProgress=0; bomb.defuseProgress=0; bomb.timer=0;
+    bomb.state='idle'; bomb.carrier=null; bomb.siteIndex=null; bomb.plantProgress=0; bomb.defuseProgress=0; bomb.defuser=null; bomb.timer=0;
     lastFightTime=-999; lastFightPos={x:0,y:0}; roundTime=ROUND_TIME; roundOver=false; resultMessage='';
-    attackerSiteIndex = Math.random()<0.5?0:1;
+    attackerStrategy = Math.random()<0.5?'rush':'default';
+    defaultPhase = attackerStrategy==='default' ? 'take' : null;
+    strategyTimer = attackerStrategy==='default' ? 20 : 0;
+    attackerSiteIndex = attackerStrategy==='rush' ? (Math.random()<0.5?0:1) : -1;
     preRoundTime = 10;
     attackerDoorOpen = false;
 
@@ -570,7 +609,9 @@
     // Attackers
     for(let i=0;i<10;i++){
       const p = sampleInRect(attackerSpawnRect);
-      const a = new Agent(p.x,p.y,TEAM_ATTACKER,'#4EE1C1',i,10); attackers.push(a); agents.push(a);
+      const a = new Agent(p.x,p.y,TEAM_ATTACKER,'#4EE1C1',i,10);
+      a.defaultSite = (attackerStrategy==='default') ? (i<5?0:1) : attackerSiteIndex;
+      attackers.push(a); agents.push(a);
     }
     // Defenders
     for(let i=0;i<10;i++){
@@ -610,6 +651,16 @@
       }
     } else if(bomb.state!=='planted'){ roundTime-=dt; }
 
+    if(attackerStrategy==='default' && defaultPhase==='take'){
+      strategyTimer -= dt;
+      const nowSec=performance.now()/1000;
+      if(strategyTimer<=0 || nowSec - lastFightTime < dt){
+        attackerSiteIndex = nearestSite(lastFightPos);
+        defaultPhase='execute';
+        for(const a of attackers) a.repathTimer=0;
+      }
+    }
+
     for(const a of agents) a.update(dt);
     separation();
     updateBullets(dt);
@@ -620,11 +671,11 @@
       const ok = c && c.alive && ((c.x-s.x)**2+(c.y-s.y)**2) < s.r*s.r;
       if(!ok){ bomb.state='idle'; bomb.carrier=null; bomb.siteIndex=null; bomb.plantProgress=0; }
     }
-    if(bomb.state==='planted' && bomb.defuseProgress>0){
-      const s=sites[bomb.siteIndex];
-      const someone = defenders.some(d=> d.alive && ((d.x-s.x)**2+(d.y-s.y)**2) < s.r*s.r );
-      if(!someone) bomb.defuseProgress=0;
-    }
+      if(bomb.state==='planted' && bomb.defuseProgress>0){
+        const s=sites[bomb.siteIndex];
+        const someone = defenders.some(d=> d.alive && ((d.x-s.x)**2+(d.y-s.y)**2) < s.r*s.r );
+        if(!someone){ bomb.defuseProgress=0; bomb.defuser=null; }
+      }
     if(bomb.state==='planted'){ bomb.timer += dt; if(bomb.timer>=TIME_TO_EXPLODE) bomb.state='exploded'; }
 
     if(!roundOver && checkRoundEnd()){ roundOver=true; gameRunning=false; setTimeout(()=>showEndOverlay(resultMessage), 300); }
@@ -638,9 +689,20 @@
     drawMap();
     // bullets
     ctx.fillStyle='#fff5a0'; for(const b of bullets){ ctx.beginPath(); ctx.arc(b.x,b.y,BULLET_RADIUS,0,Math.PI*2); ctx.fill(); }
-    // agents
-    for(const a of agents) a.draw();
-    // sites labels drawn in drawMap
+      // agents
+      for(const a of agents) a.draw();
+      // planting / defusing bars
+      if(bomb.state==='planting' && bomb.carrier){
+        const p=bomb.carrier; const w=30, h=5;
+        ctx.fillStyle='#000'; ctx.fillRect(p.x-w/2, p.y-AGENT_RADIUS-16, w, h);
+        ctx.fillStyle='#FFD23F'; ctx.fillRect(p.x-w/2, p.y-AGENT_RADIUS-16, w*bomb.plantProgress, h);
+      }
+      if(bomb.state==='planted' && bomb.defuseProgress>0 && bomb.defuser){
+        const d=bomb.defuser; const w=30, h=5;
+        ctx.fillStyle='#000'; ctx.fillRect(d.x-w/2, d.y-AGENT_RADIUS-16, w, h);
+        ctx.fillStyle='#3EA0FF'; ctx.fillRect(d.x-w/2, d.y-AGENT_RADIUS-16, w*bomb.defuseProgress, h);
+      }
+      // sites labels drawn in drawMap
     ctx.restore();
 
     // HUD
