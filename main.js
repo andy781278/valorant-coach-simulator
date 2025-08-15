@@ -540,28 +540,33 @@
 
       // Movement toward node
       let mvx=0,mvy=0;
-      if(this.pathIdx<this.path.length){
+      if(!engaged && this.pathIdx<this.path.length){
         const node=this.path[this.pathIdx], dx=node.x-this.x, dy=node.y-this.y, d=Math.hypot(dx,dy);
         if(d>0){ mvx=dx/d; mvy=dy/d; }
       }
-      // Apply wall repulsion
       const rep = wallRepulse(this.x,this.y);
-      mvx += rep.x*0.18; mvy += rep.y*0.18;
-
-      // Combat strafing only when engaged
       if(engaged){
-        this.strafeT+=dt; const s=Math.sin(this.strafeT*10+this.strafePhase)*0.45;
-        const px=-mvy, py=mvx; mvx=mvx*0.9 + px*s; mvy=mvy*0.9 + py*s;
-      }
-
-      // Normalize & step with predictive sliding
-      const ml=Math.hypot(mvx,mvy); if(ml>0){
-        mvx/=ml; mvy/=ml;
-        const step = AI_SPEED*dt;
-        this.tryStep(mvx*step, mvy*step);
-        // Keep inside world
-        this.x=Math.max(AGENT_RADIUS, Math.min(WORLD_W-AGENT_RADIUS, this.x));
-        this.y=Math.max(AGENT_RADIUS, Math.min(WORLD_H-AGENT_RADIUS, this.y));
+        this.strafeT+=dt; const s=Math.sin(this.strafeT*10+this.strafePhase);
+        const px=Math.cos(this.facing+Math.PI/2), py=Math.sin(this.facing+Math.PI/2);
+        mvx = px*s + rep.x*0.18;
+        mvy = py*s + rep.y*0.18;
+        const ml=Math.hypot(mvx,mvy);
+        if(ml>0){
+          mvx/=ml; mvy/=ml;
+          const step=AI_SPEED*dt*Math.abs(s);
+          this.tryStep(mvx*step, mvy*step);
+          this.x=Math.max(AGENT_RADIUS, Math.min(WORLD_W-AGENT_RADIUS, this.x));
+          this.y=Math.max(AGENT_RADIUS, Math.min(WORLD_H-AGENT_RADIUS, this.y));
+        }
+      } else {
+        mvx += rep.x*0.18; mvy += rep.y*0.18;
+        const ml=Math.hypot(mvx,mvy); if(ml>0){
+          mvx/=ml; mvy/=ml;
+          const step=AI_SPEED*dt;
+          this.tryStep(mvx*step, mvy*step);
+          this.x=Math.max(AGENT_RADIUS, Math.min(WORLD_W-AGENT_RADIUS, this.x));
+          this.y=Math.max(AGENT_RADIUS, Math.min(WORLD_H-AGENT_RADIUS, this.y));
+        }
       }
 
       if(engaged && t){
@@ -610,6 +615,15 @@
         ctx.fillStyle=this.dead?'#45464d':this.color;
         ctx.beginPath(); ctx.arc(this.x,this.y,AGENT_RADIUS,0,Math.PI*2); ctx.fill();
         ctx.lineWidth=2; ctx.strokeStyle=this.team===TEAM_ATTACKER?'#FF5A5A':'#3EA0FF'; ctx.stroke();
+        // gun barrel
+        if(this.alive){
+          ctx.save();
+          ctx.translate(this.x,this.y);
+          ctx.rotate(this.facing);
+          ctx.fillStyle='#b3b3b3';
+          ctx.fillRect(AGENT_RADIUS,-2,8,4);
+          ctx.restore();
+        }
         if(this.hasBomb){ ctx.fillStyle='#FFD23F'; ctx.beginPath(); ctx.arc(this.x,this.y,5,0,Math.PI*2); ctx.fill(); }
         if(this.alive){
           const w=20,h=4;
@@ -719,13 +733,6 @@
   function sampleInRect(rx){
     const x0=Math.max(0,Math.floor(rx.x0)), y0=Math.max(0,Math.floor(rx.y0));
     const x1=Math.min(GRID_W-1,Math.ceil(rx.x1)), y1=Math.min(GRID_H-1,Math.ceil(rx.y1));
-    for(let tries=0; tries=400; tries++){}
-    return {x:WORLD_W/2,y:WORLD_H-40};
-  }
-  // (Fix loop — correct logic)
-  function sampleInRect(rx2){
-    const x0=Math.max(0,Math.floor(rx2.x0)), y0=Math.max(0,Math.floor(rx2.y0));
-    const x1=Math.min(GRID_W-1,Math.ceil(rx2.x1)), y1=Math.min(GRID_H-1,Math.ceil(rx2.y1));
     for(let tries=0; tries<500; tries++){
       const cx = Math.floor(x0 + Math.random()*(x1-x0-1));
       const cy = Math.floor(y0 + Math.random()*(y1-y0-1));
