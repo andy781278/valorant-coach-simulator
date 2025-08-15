@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Top‑Down Bomb (v7.5 • anti‑stuck AI)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  html,body { height:100%; }
+  body { margin:0; background:#0e0f12; color:#fff; font-family:system-ui,Segoe UI,Roboto,sans-serif; overflow:hidden; }
+  #game { width:100vw; height:100vh; display:block; background:#15161b; }
+  #hud { position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:2; pointer-events:none; font-weight:600; }
+  #status { position:absolute; top:36px; left:50%; transform:translateX(-50%); z-index:2; pointer-events:none; font-size:14px; opacity:.9; }
+  #overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.85); z-index:3; }
+  #panel { text-align:center; }
+  button { padding:12px 18px; border-radius:10px; border:1px solid #444; background:#222; color:#fff; cursor:pointer; }
+  .small { opacity:.8; font-size:13px; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud"></div>
+<div id="status"></div>
+<div id="overlay"><div id="panel">
+  <h2>Top‑Down Bomb Defusal (v7.5)</h2>
+  <div class="small">Anti‑stuck AI • wide doorways • 10v10 • A/B sites • 90s rounds</div>
+  <div class="small">Press <b>D</b> to toggle doorway highlights.</div>
+  <br/><button id="startBtn">Start Simulation</button>
+</div></div>
+<script src="main.js"></script>
+</body>
+</html>
