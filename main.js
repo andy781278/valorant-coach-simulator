@@ -1,4 +1,4 @@
-// v9.0 — Duelists and extra anchor
+// v9.1 — Duelists, extra anchor, headshots
 (function(){
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -656,8 +656,15 @@
         if(!t.alive) continue;
         const d=(t.x-b.x)**2+(t.y-b.y)**2;
         if(d < (AGENT_RADIUS+BULLET_RADIUS)**2){
-          t.hp -= b.dmg;
-          if(t.hp<=0){
+          let killed=false;
+          if(!b.mini && Math.random() < (b.owner.duelist ? 0.5 : 0.3)){
+            t.hp = 0;
+            killed = true;
+          } else {
+            t.hp -= b.dmg;
+            killed = t.hp<=0;
+          }
+          if(killed){
             t.dead=true;
             if(t.hasBomb){ t.hasBomb=false; const aliveA=attackers.filter(a=>a.alive); if(aliveA.length){ aliveA[0].hasBomb=true; bomb.carrier=aliveA[0]; } }
           }
