@@ -21,7 +21,7 @@
   const BULLET_SPEED = 700, BULLET_RADIUS=3, BULLET_LIFETIME=2.0, BULLET_DAMAGE=28;
   const BULLET_TRACER=14;
   const SHOOT_COOLDOWN=0.55, DETECTION_RANGE=540;
-  const BULLET_INACCURACY = 0.3; // radians of random spread
+  const BULLET_INACCURACY = 0.15; // radians of random spread
   const ROUND_TIME=90, PLANT_TIME=3, DEFUSE_TIME=4, TIME_TO_EXPLODE=30;
   const TEAM_ATTACKER='ATT', TEAM_DEFENDER='DEF';
   const DOOR_T = 8; // tiles; >= 96px openings
