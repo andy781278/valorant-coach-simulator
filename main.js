@@ -27,10 +27,10 @@
   const DOOR_T = 8; // tiles; >= 96px openings
 
   // Defender lockdown ability via sticky mini devices
-  const ANCHOR_BULLET_DAMAGE = 28;
+  const ANCHOR_BULLET_DAMAGE = 16;
   const MINI_DEVICE_RADIUS = 48;
   const MINI_DEVICE_DPS = 16;
-  const MINI_DEVICE_LIFETIME = 5;
+  const MINI_DEVICE_LIFETIME = 3;
 
   // Vision cone rendering
   const VISION_FOV = Math.PI/4;
