@@ -34,6 +34,7 @@
   // ---- Map data
   let walkable = Array.from({length:GRID_H}, ()=>Array(GRID_W).fill(false));
   let doors = []; // {x0,y0,x1,y1} in tiles for draw/debug
+  let chokePoints = [];
   let showDoors=false;
 
   let sites = [{name:'A',x:0,y:0,r:84},{name:'B',x:0,y:0,r:84}];
@@ -153,6 +154,13 @@
     const bC = centerRect(W*0.70, H*0.24, W*0.94, H*0.44);
     sites[0].x=aC.x; sites[0].y=aC.y;
     sites[1].x=bC.x; sites[1].y=bC.y;
+
+    // Important chokeholds for defender lockdown devices
+    chokePoints = [];
+    const addChoke=(x0,y0,x1,y1)=>chokePoints.push(centerRect(x0,y0,x1,y1));
+    addChoke(W*0.28, H*0.33, W*0.31, H*0.37); // A main door
+    addChoke(W*0.70, H*0.33, W*0.73, H*0.37); // B main door
+    addChoke(W*0.47, H*0.39, W*0.53, H*0.41); // Mid connector
 
   }
 
@@ -443,7 +451,9 @@
           }
         }
       } else {
-        if(this.pushTarget && !this.pushDone && bomb.state!=='planted'){
+        if(this.special && this.chokePoint && preRoundTime>0){
+          target={x:this.chokePoint.x, y:this.chokePoint.y};
+        } else if(this.pushTarget && !this.pushDone && bomb.state!=='planted'){
           target={x:this.pushTarget.x, y:this.pushTarget.y};
           const dPush=(this.x-this.pushTarget.x)**2 + (this.y-this.pushTarget.y)**2;
           if(dPush < 400) this.pushDone=true;
@@ -468,8 +478,8 @@
         if(!p){
           const stop = nearestWalkableTowards(this.x,this.y,this.goal.x,this.goal.y);
           if(stop){
-            const alt = nav.astar({x:this.x,y:this.y}, stop);
-            p = alt && alt.length ? alt : [stop];
+            this.goal = stop;
+            p = nav.astar({x:this.x,y:this.y}, this.goal) || [this.goal];
           }
         }
         this.path = (p && p.length)?p:[this.goal];
@@ -545,8 +555,9 @@
         } else if(this.device && !this.device.active){
           for(const a of attackers){
             if(!a.alive) continue;
-            const d2=(a.x-this.device.x)**2+(a.y-this.device.y)**2;
-            if(d2 < this.device.r*this.device.r){ this.device.active=true; break; }
+            const near=(a.x-this.device.x)**2+(a.y-this.device.y)**2 < this.device.r*this.device.r;
+            const sees=((a.x-this.x)**2+(a.y-this.y)**2) < DETECTION_RANGE*DETECTION_RANGE && losFree(this.x,this.y,a.x,a.y);
+            if(near && sees){ this.device.active=true; break; }
           }
         }
       }
@@ -577,7 +588,7 @@
     }
       draw(){
         if(this.alive){
-          ctx.fillStyle=`rgba(255,255,255,${VISION_ALPHA})`;
+          ctx.fillStyle=`rgba(0,0,0,${VISION_ALPHA})`;
           ctx.beginPath();
           ctx.moveTo(this.x,this.y);
           ctx.arc(this.x,this.y,DETECTION_RANGE,this.facing-VISION_FOV,this.facing+VISION_FOV);
@@ -746,7 +757,11 @@
       defenders.push(d); agents.push(d);
     }
     const anchors = defenders.filter(d=>!d.pushTarget);
-    if(anchors.length){ anchors[Math.floor(Math.random()*anchors.length)].special=true; }
+    if(anchors.length){
+      const a = anchors[Math.floor(Math.random()*anchors.length)];
+      a.special=true;
+      if(chokePoints.length){ a.chokePoint = chokePoints[Math.floor(Math.random()*chokePoints.length)]; }
+    }
 
     // Bomb
     const carrier=attackers[Math.floor(Math.random()*attackers.length)]; carrier.hasBomb=true; bomb.carrier=carrier;
