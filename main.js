@@ -1,4 +1,4 @@
-// v7.6 — Defender spawn & 10s freeze time
+// v7.7 — Spawn barrier & mid expansion
 (function(){
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -68,7 +68,6 @@
 
     // Mid hub
     carveRect(W*0.36, H*0.55, W*0.64, H*0.70);
-    carveDoor(W*0.47, H*0.70, W*0.53, H*0.70+2);
 
     // Left/right junctions
     carveRect(W*0.22, H*0.55, W*0.36, H*0.62);
@@ -99,6 +98,14 @@
     carveRect(W*0.58, H*0.18, W*0.70, H*0.24);
     carveDoor(W*0.40, H*0.24, W*0.42, H*0.27);
     carveDoor(W*0.58, H*0.24, W*0.60, H*0.27);
+
+    // Defender spawn connectors to sites (wider exits)
+    carveDoor(W*0.36, H*0.18, W*0.42, H*0.18+2);
+    carveDoor(W*0.58, H*0.18, W*0.64, H*0.18+2);
+
+    // Mid expansion
+    carveDoor(W*0.12, H*0.52, W*0.88, H*0.52+2); // A ↔ B across mid
+    carveDoor(W*0.47, H*0.55, W*0.53, H-18);      // Attacker spawn ↔ mid
 
     // Defender spawn room (north) and connectors
     carveRect(W*0.42, H*0.04, W*0.58, H*0.18);
@@ -491,6 +498,11 @@
     ctx.fillStyle='#101218'; ctx.fillRect(0,0,WORLD_W,WORLD_H);
     ctx.fillStyle='#d8d9df';
     for(let y=0;y<GRID_H;y++){ for(let x=0;x<GRID_W;x++){ if(walkable[y][x]) ctx.fillRect(x*TILE, y*TILE, TILE, TILE); } }
+    if(!attackerDoorOpen){
+      const d = attackerDoor;
+      ctx.fillStyle='rgba(64,128,255,0.4)';
+      ctx.fillRect(d.x0*TILE, d.y0*TILE, (d.x1-d.x0)*TILE, (d.y1-d.y0)*TILE);
+    }
     if(showDoors){
       ctx.strokeStyle='#ff66aa'; ctx.lineWidth=3;
       for(const d of doors){ ctx.strokeRect(d.x0*TILE, d.y0*TILE, (d.x1-d.x0)*TILE, (d.y1-d.y0)*TILE); }
