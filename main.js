@@ -64,7 +64,7 @@
 
     // South connector to mid
     carveRect(W*0.44, H-48, W*0.56, H-18);
-    attackerDoor = {x0:W*0.47, y0:H-50, x1:W*0.53, y1:H-48}; // closed initially
+    attackerDoor = {x0:W*0.44, y0:H-50, x1:W*0.56, y1:H-48}; // closed initially
 
     // Mid hub
     carveRect(W*0.36, H*0.55, W*0.64, H*0.70);
@@ -247,11 +247,48 @@
   let attackerSiteIndex=0, lastFightTime=-999, lastFightPos={x:0,y:0}, roundTime=ROUND_TIME;
   let gameRunning=false, lastTime=0, roundOver=false, resultMessage='';
 
-  const camera={x:0,y:0, w:()=>canvas.width, h:()=>canvas.height};
-  function centerCameraOn(x,y){
-    camera.x=Math.max(0, Math.min(WORLD_W - camera.w(), x - camera.w()/2));
-    camera.y=Math.max(0, Math.min(WORLD_H - camera.h(), y - camera.h()/2));
+  // spectator camera state
+  const camera={
+    x:0,
+    y:0,
+    zoom:1,
+    w:()=>canvas.width/camera.zoom,
+    h:()=>canvas.height/camera.zoom
+  };
+  function clampCamera(){
+    camera.x=Math.max(0, Math.min(WORLD_W - camera.w(), camera.x));
+    camera.y=Math.max(0, Math.min(WORLD_H - camera.h(), camera.y));
   }
+  function centerCameraOn(x,y){
+    camera.x = x - camera.w()/2;
+    camera.y = y - camera.h()/2;
+    clampCamera();
+  }
+
+  // camera input
+  const camKeys={};
+  addEventListener('keydown',e=>{
+    const k=e.key.toLowerCase();
+    camKeys[k]=true;
+    if(k==='='||k==='+') camera.zoom*=1.1;
+    if(k==='-'||k==='_') camera.zoom/=1.1;
+    if(k==='='||k==='+'||k==='-'||k==='_'){
+      camera.zoom=Math.max(0.5, Math.min(3, camera.zoom));
+      const cx=camera.x+camera.w()/2, cy=camera.y+camera.h()/2;
+      camera.x=cx-camera.w()/2; camera.y=cy-camera.h()/2;
+      clampCamera();
+    }
+  });
+  addEventListener('keyup',e=>{ camKeys[e.key.toLowerCase()]=false; });
+  addEventListener('wheel',e=>{
+    if(e.deltaY<0) camera.zoom*=1.1; else camera.zoom/=1.1;
+    camera.zoom=Math.max(0.5, Math.min(3, camera.zoom));
+    // keep center
+    const cx=camera.x+camera.w()/2, cy=camera.y+camera.h()/2;
+    camera.x=cx-camera.w()/2; camera.y=cy-camera.h()/2;
+    clampCamera();
+    e.preventDefault();
+  },{passive:false});
 
   function separation(){
     for(let i=0;i<agents.length;i++){
@@ -524,7 +561,7 @@
     // Bomb
     const carrier=attackers[Math.floor(Math.random()*attackers.length)]; carrier.hasBomb=true; bomb.carrier=carrier;
 
-    centerCameraOn(carrier.x,carrier.y);
+    centerCameraOn(WORLD_W/2, WORLD_H/2);
     gameRunning=true; lastTime=performance.now(); requestAnimationFrame(loop);
   }
 
@@ -535,6 +572,13 @@
   }
 
   function update(dt){
+    const camSpeed = 400 / camera.zoom;
+    if(camKeys['arrowleft'] || camKeys['a']) camera.x -= camSpeed*dt;
+    if(camKeys['arrowright'] || camKeys['d']) camera.x += camSpeed*dt;
+    if(camKeys['arrowup'] || camKeys['w']) camera.y -= camSpeed*dt;
+    if(camKeys['arrowdown'] || camKeys['s']) camera.y += camSpeed*dt;
+    clampCamera();
+
     if(preRoundTime>0){
       preRoundTime-=dt;
       if(preRoundTime<=0 && !attackerDoorOpen){
@@ -565,13 +609,10 @@
   }
 
   function draw(){
-    // Camera follow attackers' centroid or bomb carrier
-    const follow = (bomb.carrier && bomb.carrier.alive)? {x:bomb.carrier.x,y:bomb.carrier.y}
-                  : (function(){ const alive=attackers.filter(a=>a.alive); if(!alive.length) return {x:WORLD_W/2,y:WORLD_H/2}; let sx=0,sy=0; for(const a of alive){ sx+=a.x; sy+=a.y; } return {x:sx/alive.length,y:sy/alive.length}; })();
-    centerCameraOn(follow.x, follow.y);
-
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.save(); ctx.translate(-camera.x, -camera.y);
+    ctx.save();
+    ctx.scale(camera.zoom, camera.zoom);
+    ctx.translate(-camera.x, -camera.y);
     drawMap();
     // bullets
     ctx.fillStyle='#fff5a0'; for(const b of bullets){ ctx.beginPath(); ctx.arc(b.x,b.y,BULLET_RADIUS,0,Math.PI*2); ctx.fill(); }
