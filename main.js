@@ -52,6 +52,14 @@
     doors.push({x0,y0,x1,y1});
   }
 
+  function blockRect(x0,y0,x1,y1){
+    x0=i(Math.floor(x0)); y0=i(Math.floor(y0));
+    x1=i(Math.ceil(x1));  y1=i(Math.ceil(y1));
+    for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){
+      if(x>=0&&y>=0&&x<GRID_W&&y<GRID_H) walkable[y][x]=false;
+    }
+  }
+
   function buildMap(){
     walkable = Array.from({length:GRID_H}, ()=>Array(GRID_W).fill(false));
     doors = [];
@@ -63,8 +71,8 @@
     attackerSpawnRect = {x0:sx0, y0:H-18, x1:sx1, y1:H-6};
 
     // South connector to mid
-    carveRect(W*0.44, H-48, W*0.56, H-18);
-    attackerDoor = {x0:W*0.44, y0:H-50, x1:W*0.56, y1:H-48}; // closed initially
+    carveRect(W*0.44, H-68, W*0.56, H-18);
+    attackerDoor = {x0:W*0.44, y0:H-70, x1:W*0.56, y1:H-68}; // closed initially
 
     // Mid hub
     carveRect(W*0.36, H*0.55, W*0.64, H*0.70);
@@ -77,7 +85,9 @@
 
     // A/B mains
     carveRect(W*0.12, H*0.45, W*0.36, H*0.60); // A main
+    blockRect(W*0.22, H*0.45, W*0.26, H*0.60);
     carveRect(W*0.64, H*0.45, W*0.88, H*0.60); // B main
+    blockRect(W*0.74, H*0.45, W*0.78, H*0.60);
 
     // Upper connector
     carveRect(W*0.44, H*0.40, W*0.56, H*0.55);
@@ -105,7 +115,7 @@
 
     // Mid expansion
     carveDoor(W*0.12, H*0.42, W*0.88, H*0.42+2); // A ↔ B across mid
-    carveDoor(W*0.47, H*0.45, W*0.53, H-48);      // Attacker spawn ↔ mid
+    carveDoor(W*0.47, H*0.35, W*0.53, H-68);      // Attacker spawn ↔ mid
 
     // Defender spawn room (north) and connectors
     carveRect(W*0.42, H*0.04, W*0.58, H*0.18);
