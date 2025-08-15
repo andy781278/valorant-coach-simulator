@@ -1,4 +1,4 @@
-// v8.1 — Gun barrel visuals, fight strafing, and anchor slowdown
+// v9.1 — Duelists, extra anchor, headshots
 (function(){
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -27,11 +27,11 @@
   const DOOR_T = 8; // tiles; >= 96px openings
 
   // Defender lockdown ability via sticky mini devices
-  const ANCHOR_BULLET_DAMAGE = 1;
+  const ANCHOR_BULLET_DAMAGE = 28;
   const MINI_DEVICE_RADIUS = 36;
-  const MINI_DEVICE_DPS = 8;
+  const MINI_DEVICE_DPS = 12;
   const MINI_DEVICE_LIFETIME = 2;
-  const MINI_DEVICE_SLOW = 0.9; // 20% speed reduction
+  const MINI_DEVICE_SLOW = 0.85; // 20% speed reduction
 
   // Vision cone rendering
   const VISION_FOV = Math.PI/4;
@@ -406,12 +406,15 @@
       this.special = false;
       this.waiting = false;
       this.speedMult = 1;
+      this.duelist = false;
+      this.baseSpeed = 1;
     }
     get alive(){ return !this.dead; }
     shoot(){
       if(this.dead||this.shootCooldown>0) return;
       const t=findNearestEnemy(this); if(!t) return;
-      const ang=Math.atan2(t.y-this.y,t.x-this.x) + (Math.random()-0.5)*BULLET_INACCURACY;
+      const spread=this.duelist?0:(Math.random()-0.5)*BULLET_INACCURACY;
+      const ang=Math.atan2(t.y-this.y,t.x-this.x) + spread;
       const bullet={
         x:this.x,
         y:this.y,
@@ -556,7 +559,10 @@
 
       // Combat strafing only when engaged
       if(engaged && t){
-        this.strafeT+=dt; const s=Math.sin(this.strafeT*10+this.strafePhase)*0.7;
+        this.strafeT+=dt;
+        const freq=this.duelist?14:10;
+        const amp=this.duelist?0.9:0.7;
+        const s=Math.sin(this.strafeT*freq+this.strafePhase)*amp;
         const ang=Math.atan2(t.y-this.y, t.x-this.x) + Math.PI/2;
         mvx += Math.cos(ang)*s; mvy += Math.sin(ang)*s;
       }
@@ -564,7 +570,7 @@
       // Normalize & step with predictive sliding
       const ml=Math.hypot(mvx,mvy); if(ml>0){
         mvx/=ml; mvy/=ml;
-        const step = AI_SPEED*dt*this.speedMult;
+        const step = AI_SPEED*dt*this.speedMult*this.baseSpeed;
         this.tryStep(mvx*step, mvy*step);
         // Keep inside world
         this.x=Math.max(AGENT_RADIUS, Math.min(WORLD_W-AGENT_RADIUS, this.x));
@@ -650,8 +656,15 @@
         if(!t.alive) continue;
         const d=(t.x-b.x)**2+(t.y-b.y)**2;
         if(d < (AGENT_RADIUS+BULLET_RADIUS)**2){
-          t.hp -= b.dmg;
-          if(t.hp<=0){
+          let killed=false;
+          if(!b.mini && Math.random() < (b.owner.duelist ? 0.35 : 0.15)){
+            t.hp = 0;
+            killed = true;
+          } else {
+            t.hp -= b.dmg;
+            killed = t.hp<=0;
+          }
+          if(killed){
             t.dead=true;
             if(t.hasBomb){ t.hasBomb=false; const aliveA=attackers.filter(a=>a.alive); if(aliveA.length){ aliveA[0].hasBomb=true; bomb.carrier=aliveA[0]; } }
           }
@@ -773,27 +786,35 @@
     buildMap();
 
     // Attackers
+    const attackerDuelist = Math.floor(Math.random()*5);
     for(let i=0;i<5;i++){
       const p = sampleInRect(attackerSpawnRect);
       const a = new Agent(p.x,p.y,TEAM_ATTACKER,'#808080',i,5);
       a.defaultSite = (attackerStrategy==='default') ? (i<3?0:1) : attackerSiteIndex;
+      if(i===attackerDuelist){ a.duelist=true; a.color='#FFFF00'; a.baseSpeed=1.25; }
       attackers.push(a); agents.push(a);
     }
     // Defenders
+    const defenderDuelist = Math.floor(Math.random()*5);
     const midPushRect = {x0:GRID_W*0.36, y0:GRID_H*0.55, x1:GRID_W*0.64, y1:GRID_H*0.70};
     for(let i=0;i<5;i++){
       const p = sampleInRect(defenderSpawnRect);
       const d = new Agent(p.x,p.y,TEAM_DEFENDER,'#808080',i,5);
       d.siteIndex = Math.random()<0.5?0:1;
-      if(Math.random()<0.3){ d.pushTarget = sampleInRect(midPushRect); }
+      let pushChance = 0.3;
+      if(i===defenderDuelist){ d.duelist=true; d.color='#FFFF00'; d.baseSpeed=1.25; pushChance=0.7; }
+      if(Math.random()<pushChance){ d.pushTarget = sampleInRect(midPushRect); }
       defenders.push(d); agents.push(d);
     }
-    const anchors = defenders.filter(d=>!d.pushTarget);
-    if(anchors.length){
-      const a = anchors[Math.floor(Math.random()*anchors.length)];
-      a.special=true;
-      a.color='#FFD23F';
-      if(chokePoints.length){ a.chokePoint = chokePoints[Math.floor(Math.random()*chokePoints.length)]; }
+    const anchorCandidates = defenders.filter(d=>!d.pushTarget && !d.duelist);
+    for(let k=0;k<2;k++){
+      if(anchorCandidates.length){
+        const idx=Math.floor(Math.random()*anchorCandidates.length);
+        const a=anchorCandidates.splice(idx,1)[0];
+        a.special=true;
+        a.color='#FFD23F';
+        if(chokePoints.length){ a.chokePoint = chokePoints[Math.floor(Math.random()*chokePoints.length)]; }
+      }
     }
 
     // Bomb
