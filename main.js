@@ -1,4 +1,4 @@
-// v7.7 — Spawn barrier & mid expansion
+// v7.8 — Defender barrier & attacker tweaks
 (function(){
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -32,6 +32,7 @@
   let attackerSpawnRect = {x0:0,y0:0,x1:0,y1:0}; // tiles
   let defenderSpawnRect = {x0:0,y0:0,x1:0,y1:0}; // tiles
   let attackerDoor = null;
+  let defenderBarrier = null;
   let preRoundTime = 0;
   let attackerDoorOpen = false;
   let attackerWins = 0, defenderWins = 0;
@@ -71,11 +72,11 @@
     const spawnWidth = Math.floor(W*0.66);
     const sx0 = (W - spawnWidth)/2, sx1 = (W + spawnWidth)/2;
     carveRect(sx0, H-16, sx1, H-6);
-    attackerSpawnRect = {x0:sx0, y0:H-16, x1:sx1, y1:H-6};
+    attackerSpawnRect = {x0:sx0, y0:H-14, x1:sx1, y1:H-6};
 
     // South connector to mid
-    carveRect(W*0.44, H-68, W*0.56, H-20);
-    attackerDoor = {x0:W*0.44, y0:H-20, x1:W*0.56, y1:H-16}; // closed initially (taller)
+    carveRect(W*0.44, H-68, W*0.56, H-24);
+    attackerDoor = {x0:W*0.44, y0:H-24, x1:W*0.56, y1:H-16}; // moved higher, opened later
 
     // Mid hub
     carveRect(W*0.36, H*0.55, W*0.64, H*0.70);
@@ -130,6 +131,11 @@
     carveRect(W*0.64, H*0.52, W*0.70, H*0.55);
     carveDoor(W*0.33, H*0.55, W*0.36, H*0.57);
     carveDoor(W*0.64, H*0.55, W*0.67, H*0.57);
+
+    // Defender barrier under sites
+    const defBarrierY = H*0.44;
+    blockRect(0, defBarrierY, W, defBarrierY+2);
+    defenderBarrier = {x0:0, y0:defBarrierY, x1:W, y1:defBarrierY+2};
 
     // Centers
     function centerRect(x0,y0,x1,y1){ return {x: ((x0+x1)/2|0)*TILE, y: ((y0+y1)/2|0)*TILE}; }
@@ -555,6 +561,11 @@
       const d = attackerDoor;
       ctx.fillStyle='rgba(64,128,255,0.4)';
       ctx.fillRect(d.x0*TILE, d.y0*TILE, (d.x1-d.x0)*TILE, (d.y1-d.y0)*TILE);
+      if(defenderBarrier){
+        const b = defenderBarrier;
+        ctx.fillStyle='rgba(255,64,64,0.4)';
+        ctx.fillRect(b.x0*TILE, b.y0*TILE, (b.x1-b.x0)*TILE, (b.y1-b.y0)*TILE);
+      }
     }
     if(showDoors){
       ctx.strokeStyle='#ff66aa'; ctx.lineWidth=3;
@@ -621,7 +632,7 @@
     // Attackers
     for(let i=0;i<10;i++){
       const p = sampleInRect(attackerSpawnRect);
-      const a = new Agent(p.x,p.y,TEAM_ATTACKER,'#4EE1C1',i,10);
+      const a = new Agent(p.x,p.y,TEAM_ATTACKER,'#ff5555',i,10);
       a.defaultSite = (attackerStrategy==='default') ? (i<5?0:1) : attackerSiteIndex;
       attackers.push(a); agents.push(a);
     }
@@ -672,6 +683,7 @@
       preRoundTime-=dt;
       if(preRoundTime<=0 && !attackerDoorOpen){
         carveDoor(attackerDoor.x0, attackerDoor.y0, attackerDoor.x1, attackerDoor.y1);
+        if(defenderBarrier) carveRect(defenderBarrier.x0, defenderBarrier.y0, defenderBarrier.x1, defenderBarrier.y1);
         attackerDoorOpen = true;
         for(const a of attackers) a.repathTimer=0;
       }
