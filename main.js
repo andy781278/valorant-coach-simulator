@@ -104,8 +104,8 @@
     carveDoor(W*0.58, H*0.18, W*0.64, H*0.18+2);
 
     // Mid expansion
-    carveDoor(W*0.12, H*0.52, W*0.88, H*0.52+2); // A ↔ B across mid
-    carveDoor(W*0.47, H*0.55, W*0.53, H-18);      // Attacker spawn ↔ mid
+    carveDoor(W*0.12, H*0.42, W*0.88, H*0.42+2); // A ↔ B across mid
+    carveDoor(W*0.47, H*0.45, W*0.53, H-48);      // Attacker spawn ↔ mid
 
     // Defender spawn room (north) and connectors
     carveRect(W*0.42, H*0.04, W*0.58, H*0.18);
@@ -654,7 +654,7 @@
   }
 
   // Doorway overlay toggle
-  addEventListener('keydown', (e)=>{ if(e.key==='d'||e.key==='D'){ showDoors=!showDoors; }});
+  addEventListener('keydown', (e)=>{ if(e.key==='e'||e.key==='E'){ showDoors=!showDoors; }});
 
   startBtn.addEventListener('click', ()=>{ overlay.style.display='none'; startGame(); });
 
