@@ -2,17 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Top‑Down Bomb (v7.8 • mid expansion)</title>
+<title>Top‑Down Bomb (v7.9 • mid expansion)</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <style>
   html,body { height:100%; }
   body { margin:0; background:#0e0f12; color:#fff; font-family:system-ui,Segoe UI,Roboto,sans-serif; overflow:hidden; }
   #game { width:100vw; height:100vh; display:block; background:#15161b; }
-    #hud { position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:2; pointer-events:none; text-align:center; }
-    #timer { font-size:32px; font-weight:700; text-shadow:1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000; }
-    #score { font-size:20px; font-weight:600; text-shadow:1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000; }
-    #remaining { font-size:16px; text-shadow:1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000; }
-    #status { position:absolute; top:110px; left:50%; transform:translateX(-50%); z-index:2; pointer-events:none; font-size:14px; opacity:.9; }
+  #hud { position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:2; pointer-events:none; font-weight:600; }
+  #status { position:absolute; top:36px; left:50%; transform:translateX(-50%); z-index:2; pointer-events:none; font-size:14px; opacity:.9; }
   #overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.85); z-index:3; }
   #panel { text-align:center; }
   button { padding:12px 18px; border-radius:10px; border:1px solid #444; background:#222; color:#fff; cursor:pointer; }
@@ -20,16 +17,12 @@
 </style>
 </head>
 <body>
- <canvas id="game"></canvas>
- <div id="hud">
-   <div id="timer"></div>
-   <div id="score"></div>
-   <div id="remaining"></div>
- </div>
- <div id="status"></div>
+<canvas id="game"></canvas>
+<div id="hud"></div>
+<div id="status"></div>
 <div id="overlay"><div id="panel">
-  <h2>Top‑Down Bomb Defusal (v7.8)</h2>
-  <div class="small">Defender spawn • anti‑stuck AI • wide doorways • 5v5 • A/B sites • 90s rounds</div>
+  <h2>Top‑Down Bomb Defusal (v7.9)</h2>
+  <div class="small">Defender spawn • anti‑stuck AI • wide doorways • 10v10 • A/B sites • 90s rounds</div>
   <div class="small">Press <b>E</b> to toggle doorway highlights.</div>
   <br/><button id="startBtn">Start Simulation</button>
 </div></div>
