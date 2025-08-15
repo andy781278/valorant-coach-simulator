@@ -1,4 +1,4 @@
-// v7.7 — Spawn barrier & mid expansion
+// v8.0 — Gun barrel visuals & fight strafing
 (function(){
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -18,22 +18,23 @@
 
   const AGENT_RADIUS = 10;
   const AI_SPEED = 85;
-  const BULLET_SPEED = 700, BULLET_RADIUS=3, BULLET_LIFETIME=2.0, BULLET_DAMAGE=28;
+  const BULLET_SPEED = 1000, BULLET_RADIUS=3, BULLET_LIFETIME=2.0, BULLET_DAMAGE=28;
+  const BULLET_TRACER=14;
   const SHOOT_COOLDOWN=0.55, DETECTION_RANGE=540;
-  const BULLET_INACCURACY = 0.3; // radians of random spread
+  const BULLET_INACCURACY = 0.15; // radians of random spread
   const ROUND_TIME=90, PLANT_TIME=3, DEFUSE_TIME=4, TIME_TO_EXPLODE=30;
   const TEAM_ATTACKER='ATT', TEAM_DEFENDER='DEF';
   const DOOR_T = 8; // tiles; >= 96px openings
 
   // Defender lockdown ability via sticky mini devices
-  const ANCHOR_BULLET_DAMAGE = 10;
+  const ANCHOR_BULLET_DAMAGE = 16;
   const MINI_DEVICE_RADIUS = 48;
-  const MINI_DEVICE_DPS = 8;
-  const MINI_DEVICE_LIFETIME = 4;
+  const MINI_DEVICE_DPS = 16;
+  const MINI_DEVICE_LIFETIME = 3;
 
   // Vision cone rendering
   const VISION_FOV = Math.PI/4;
-  const VISION_ALPHA = 0.03;
+  const VISION_ALPHA = 0.01;
 
   // ---- Map data
   let walkable = Array.from({length:GRID_H}, ()=>Array(GRID_W).fill(false));
@@ -76,6 +77,11 @@
     for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){
       if(x>=0&&y>=0&&x<GRID_W&&y<GRID_H) walkable[y][x]=false;
     }
+  }
+
+  function lerpAngle(a,b,t){
+    const diff=((b-a+Math.PI*3)%(Math.PI*2))-Math.PI;
+    return a+diff*t;
   }
 
   function buildMap(){
@@ -538,9 +544,9 @@
         }
       }
 
-      // Movement toward node
+      // Movement toward node when not in combat
       let mvx=0,mvy=0;
-      if(this.pathIdx<this.path.length){
+      if(!engaged && this.pathIdx<this.path.length){
         const node=this.path[this.pathIdx], dx=node.x-this.x, dy=node.y-this.y, d=Math.hypot(dx,dy);
         if(d>0){ mvx=dx/d; mvy=dy/d; }
       }
@@ -549,9 +555,10 @@
       mvx += rep.x*0.18; mvy += rep.y*0.18;
 
       // Combat strafing only when engaged
-      if(engaged){
-        this.strafeT+=dt; const s=Math.sin(this.strafeT*10+this.strafePhase)*0.45;
-        const px=-mvy, py=mvx; mvx=mvx*0.9 + px*s; mvy=mvy*0.9 + py*s;
+      if(engaged && t){
+        this.strafeT+=dt; const s=Math.sin(this.strafeT*10+this.strafePhase)*0.7;
+        const ang=Math.atan2(t.y-this.y, t.x-this.x) + Math.PI/2;
+        mvx += Math.cos(ang)*s; mvy += Math.sin(ang)*s;
       }
 
       // Normalize & step with predictive sliding
@@ -564,11 +571,13 @@
         this.y=Math.max(AGENT_RADIUS, Math.min(WORLD_H-AGENT_RADIUS, this.y));
       }
 
+      let desiredFacing=this.facing;
       if(engaged && t){
-        this.facing = Math.atan2(t.y-this.y, t.x-this.x);
+        desiredFacing = Math.atan2(t.y-this.y, t.x-this.x);
       } else if(ml>0){
-        this.facing = Math.atan2(mvy,mvx);
+        desiredFacing = Math.atan2(mvy,mvx);
       }
+      this.facing = lerpAngle(this.facing, desiredFacing, 0.15);
 
       // Combat
       this.shootCooldown-=dt; if(this.shootCooldown<0) this.shootCooldown=0;
@@ -606,6 +615,14 @@
           ctx.arc(this.x,this.y,DETECTION_RANGE,this.facing-VISION_FOV,this.facing+VISION_FOV);
           ctx.closePath();
           ctx.fill();
+        }
+        if(this.alive){
+          ctx.save();
+          ctx.translate(this.x,this.y);
+          ctx.rotate(this.facing);
+          ctx.fillStyle='#888';
+          ctx.fillRect(AGENT_RADIUS*0.4,-2,AGENT_RADIUS+6,4);
+          ctx.restore();
         }
         ctx.fillStyle=this.dead?'#45464d':this.color;
         ctx.beginPath(); ctx.arc(this.x,this.y,AGENT_RADIUS,0,Math.PI*2); ctx.fill();
@@ -865,7 +882,14 @@
     drawMap();
     drawDevices();
     // bullets
-    ctx.fillStyle='#fff5a0'; for(const b of bullets){ ctx.beginPath(); ctx.arc(b.x,b.y,BULLET_RADIUS,0,Math.PI*2); ctx.fill(); }
+    ctx.strokeStyle='#fff5a0'; ctx.lineWidth=2; ctx.fillStyle='#fff5a0';
+    for(const b of bullets){
+      ctx.beginPath();
+      ctx.moveTo(b.x - b.dx*BULLET_TRACER, b.y - b.dy*BULLET_TRACER);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(b.x,b.y,BULLET_RADIUS,0,Math.PI*2); ctx.fill();
+    }
       // agents
       for(const a of agents) a.draw();
       // planting / defusing bars
