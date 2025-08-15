@@ -325,6 +325,17 @@
       lastFightTime=-999, lastFightPos={x:0,y:0}, roundTime=ROUND_TIME;
   let gameRunning=false, lastTime=0, roundOver=false, resultMessage='';
 
+  function dropBomb(at){
+    bomb.state='idle';
+    bomb.carrier=null;
+    bomb.x=at.x; bomb.y=at.y;
+    bomb.siteIndex=null; bomb.plantProgress=0;
+    bomb.defuseProgress=0; bomb.defuser=null;
+    bomb.timer=0;
+    at.hasBomb=false;
+    for(const a of attackers){ if(a.alive){ a.repathTimer=0; a.waiting=false; } }
+  }
+
   // spectator camera state
   const camera={
     x:0,
@@ -676,15 +687,7 @@
           }
           if(killed){
             t.dead=true;
-            if(t.hasBomb){
-              t.hasBomb=false;
-              bomb.state='idle';
-              bomb.carrier=null;
-              bomb.x=t.x; bomb.y=t.y;
-              bomb.siteIndex=null; bomb.plantProgress=0;
-              bomb.defuseProgress=0; bomb.defuser=null;
-              for(const a of attackers){ if(a.alive) a.repathTimer=0; }
-            }
+            if(t.hasBomb) dropBomb(t);
           }
           if(b.mini){
             devices.push({x:b.x,y:b.y,r:MINI_DEVICE_RADIUS,dps:MINI_DEVICE_DPS,life:MINI_DEVICE_LIFETIME});
@@ -709,15 +712,7 @@
           a.speedMult = Math.min(a.speedMult, MINI_DEVICE_SLOW);
           if(a.hp<=0){
             a.dead=true;
-            if(a.hasBomb){
-              a.hasBomb=false;
-              bomb.state='idle';
-              bomb.carrier=null;
-              bomb.x=a.x; bomb.y=a.y;
-              bomb.siteIndex=null; bomb.plantProgress=0;
-              bomb.defuseProgress=0; bomb.defuser=null;
-              for(const z of attackers){ if(z.alive) z.repathTimer=0; }
-            }
+            if(a.hasBomb) dropBomb(a);
           }
         }
       }
@@ -904,6 +899,7 @@
     for(const a of agents) a.update(dt);
     separation();
     updateBullets(dt);
+    if(bomb.carrier && !bomb.carrier.alive) dropBomb(bomb.carrier);
 
     // Plant/defuse edge checks
     if(bomb.state==='planting'){
