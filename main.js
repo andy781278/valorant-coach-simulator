@@ -23,13 +23,15 @@
   const TEAM_ATTACKER='ATT', TEAM_DEFENDER='DEF';
   const DOOR_T = 8; // tiles; >= 96px openings
 
-  // Defender lockdown ability
-  const LOCKDOWN_RADIUS = 80;
-  const LOCKDOWN_DPS = 25;
+  // Defender lockdown ability via sticky mini devices
+  const ANCHOR_BULLET_DAMAGE = 10;
+  const MINI_DEVICE_RADIUS = 36;
+  const MINI_DEVICE_DPS = 8;
+  const MINI_DEVICE_LIFETIME = 4;
 
   // Vision cone rendering
   const VISION_FOV = Math.PI/4;
-  const VISION_ALPHA = 0.05;
+  const VISION_ALPHA = 0.08;
 
   // ---- Map data
   let walkable = Array.from({length:GRID_H}, ()=>Array(GRID_W).fill(false));
@@ -394,14 +396,24 @@
       this.pushTarget = null; this.pushDone=false;
       this.facing = 0;
       this.special = false;
-      this.device = null;
+      this.waiting = false;
     }
     get alive(){ return !this.dead; }
     shoot(){
       if(this.dead||this.shootCooldown>0) return;
-        const t=findNearestEnemy(this); if(!t) return;
-        const ang=Math.atan2(t.y-this.y,t.x-this.x) + (Math.random()-0.5)*BULLET_INACCURACY;
-        bullets.push({x:this.x,y:this.y,dx:Math.cos(ang),dy:Math.sin(ang),life:BULLET_LIFETIME,owner:this});
+      const t=findNearestEnemy(this); if(!t) return;
+      const ang=Math.atan2(t.y-this.y,t.x-this.x) + (Math.random()-0.5)*BULLET_INACCURACY;
+      const bullet={
+        x:this.x,
+        y:this.y,
+        dx:Math.cos(ang),
+        dy:Math.sin(ang),
+        life:BULLET_LIFETIME,
+        owner:this,
+        dmg:this.special?ANCHOR_BULLET_DAMAGE:BULLET_DAMAGE,
+        mini:this.special
+      };
+      bullets.push(bullet);
       this.shootCooldown=SHOOT_COOLDOWN;
       lastFightTime=performance.now()/1000; lastFightPos={x:(this.x+t.x)/2, y:(this.y+t.y)/2};
     }
@@ -420,6 +432,10 @@
     }
       update(dt){
         if(this.dead) return;
+        if(this.waiting){
+          const doorOpen = this.team===TEAM_ATTACKER ? attackerDoorOpen : defenderDoorOpen;
+          if(doorOpen){ this.waiting=false; this.repathTimer=0; }
+        }
         if(this.team===TEAM_DEFENDER && bomb.state!=='planted'){
           const nowSec=performance.now()/1000;
           if(nowSec - lastFightTime < 0.2){
@@ -469,22 +485,26 @@
 
       // Repathing + micro jitter
       this.repathTimer-=dt;
-      const needRepath = (!this.path.length || this.repathTimer<=0 || (!engaged && this.wasEngaged));
+      const needRepath = (!this.path.length || this.repathTimer<=0 || (!engaged && this.wasEngaged)) && !this.waiting;
       if(needRepath){
-        // micro jitter to distribute goals
         const jitter=8; const jx=(Math.sin(this.id*3.7)+Math.random()-0.5)*jitter, jy=(Math.cos(this.id*2.9)+Math.random()-0.5)*jitter;
         this.goal={x:target.x + jx, y:target.y + jy};
         let p = nav.astar({x:this.x,y:this.y}, this.goal);
+        this.waiting = false;
         if(!p){
-          const stop = nearestWalkableTowards(this.x,this.y,this.goal.x,this.goal.y);
+          const stop = nearestWalkableTowards(this.x,this.y,target.x,target.y);
           if(stop){
             this.goal = stop;
             p = nav.astar({x:this.x,y:this.y}, this.goal) || [this.goal];
+            this.waiting = true;
+            this.repathTimer = 9999;
           }
+        }
+        if(!this.waiting){
+          this.repathTimer = this.hasBomb?0.35:0.9;
         }
         this.path = (p && p.length)?p:[this.goal];
         this.pathIdx=0;
-        this.repathTimer = this.hasBomb?0.35:0.9;
         this.lastProgress = 1e9; this.progressTimer=0;
       }
 
@@ -547,24 +567,9 @@
       this.shootCooldown-=dt; if(this.shootCooldown<0) this.shootCooldown=0;
       if(engaged && this.shootCooldown<=0) this.shoot();
 
-      // Special lockdown ability
-      if(this.special){
-        if(!this.device && preRoundTime<=0){
-          this.device={x:this.x,y:this.y,r:LOCKDOWN_RADIUS,active:false};
-          devices.push(this.device);
-        } else if(this.device && !this.device.active){
-          for(const a of attackers){
-            if(!a.alive) continue;
-            const near=(a.x-this.device.x)**2+(a.y-this.device.y)**2 < this.device.r*this.device.r;
-            const sees=((a.x-this.x)**2+(a.y-this.y)**2) < DETECTION_RANGE*DETECTION_RANGE && losFree(this.x,this.y,a.x,a.y);
-            if(near && sees){ this.device.active=true; break; }
-          }
-        }
-      }
-
-        // Plant / Defuse
-        if(this.team===TEAM_ATTACKER && this.hasBomb && attackerSiteIndex>=0){
-          const s=sites[attackerSiteIndex];
+      // Plant / Defuse
+      if(this.team===TEAM_ATTACKER && this.hasBomb && attackerSiteIndex>=0){
+        const s=sites[attackerSiteIndex];
         const inside = ((this.x-s.x)**2+(this.y-s.y)**2) < (s.r*s.r);
         if(inside){
           if(bomb.state==='idle'){ bomb.state='planting'; bomb.carrier=this; bomb.siteIndex=attackerSiteIndex; }
@@ -621,10 +626,13 @@
         if(!t.alive) continue;
         const d=(t.x-b.x)**2+(t.y-b.y)**2;
         if(d < (AGENT_RADIUS+BULLET_RADIUS)**2){
-          t.hp -= BULLET_DAMAGE;
+          t.hp -= b.dmg;
           if(t.hp<=0){
             t.dead=true;
             if(t.hasBomb){ t.hasBomb=false; const aliveA=attackers.filter(a=>a.alive); if(aliveA.length){ aliveA[0].hasBomb=true; bomb.carrier=aliveA[0]; } }
+          }
+          if(b.mini){
+            devices.push({x:b.x,y:b.y,r:MINI_DEVICE_RADIUS,dps:MINI_DEVICE_DPS,life:MINI_DEVICE_LIFETIME});
           }
           bullets.splice(i,1); break;
         }
@@ -633,13 +641,15 @@
   }
 
   function updateDevices(dt){
-    for(const dev of devices){
-      if(!dev.active) continue;
+    for(let i=devices.length-1;i>=0;i--){
+      const dev=devices[i];
+      dev.life-=dt;
+      if(dev.life<=0){ devices.splice(i,1); continue; }
       for(const a of attackers){
         if(!a.alive) continue;
         const d2=(a.x-dev.x)**2+(a.y-dev.y)**2;
         if(d2 < dev.r*dev.r){
-          a.hp -= LOCKDOWN_DPS*dt;
+          a.hp -= dev.dps*dt;
           if(a.hp<=0){
             a.dead=true;
             if(a.hasBomb){
@@ -677,13 +687,9 @@
   function drawDevices(){
     for(const dev of devices){
       ctx.lineWidth=2;
-      if(dev.active){
-        ctx.fillStyle='rgba(255,90,90,0.2)';
-        ctx.beginPath(); ctx.arc(dev.x,dev.y,dev.r,0,Math.PI*2); ctx.fill();
-        ctx.strokeStyle='#FF5A5A';
-      } else {
-        ctx.strokeStyle='#FFD23F';
-      }
+      ctx.fillStyle='rgba(255,90,90,0.2)';
+      ctx.beginPath(); ctx.arc(dev.x,dev.y,dev.r,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#FF5A5A';
       ctx.beginPath(); ctx.arc(dev.x,dev.y,dev.r,0,Math.PI*2); ctx.stroke();
     }
   }
@@ -741,17 +747,17 @@
     buildMap();
 
     // Attackers
-    for(let i=0;i<10;i++){
+    for(let i=0;i<5;i++){
       const p = sampleInRect(attackerSpawnRect);
-      const a = new Agent(p.x,p.y,TEAM_ATTACKER,'#FF5A5A',i,10);
-      a.defaultSite = (attackerStrategy==='default') ? (i<5?0:1) : attackerSiteIndex;
+      const a = new Agent(p.x,p.y,TEAM_ATTACKER,'#FF5A5A',i,5);
+      a.defaultSite = (attackerStrategy==='default') ? (i<3?0:1) : attackerSiteIndex;
       attackers.push(a); agents.push(a);
     }
     // Defenders
     const midPushRect = {x0:GRID_W*0.36, y0:GRID_H*0.55, x1:GRID_W*0.64, y1:GRID_H*0.70};
-    for(let i=0;i<10;i++){
+    for(let i=0;i<5;i++){
       const p = sampleInRect(defenderSpawnRect);
-      const d = new Agent(p.x,p.y,TEAM_DEFENDER,'#3EA0FF',i,10);
+      const d = new Agent(p.x,p.y,TEAM_DEFENDER,'#3EA0FF',i,5);
       d.siteIndex = Math.random()<0.5?0:1;
       if(Math.random()<0.3){ d.pushTarget = sampleInRect(midPushRect); }
       defenders.push(d); agents.push(d);
