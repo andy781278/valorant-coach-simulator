@@ -1,4 +1,4 @@
-// v7.5 — Anti‑stuck AI on v7 baseline
+// v7.6 — Defender spawn & 10s freeze time
 (function(){
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -29,7 +29,10 @@
 
   let sites = [{name:'A',x:0,y:0,r:84},{name:'B',x:0,y:0,r:84}];
   let attackerSpawnRect = {x0:0,y0:0,x1:0,y1:0}; // tiles
-  let defenderRects = []; // tiles
+  let defenderSpawnRect = {x0:0,y0:0,x1:0,y1:0}; // tiles
+  let attackerDoor = null;
+  let preRoundTime = 0;
+  let attackerDoorOpen = false;
 
   // Helpers
   function i(v){ return Math.max(0, Math.min(v|0, 9999)); }
@@ -50,6 +53,8 @@
   }
 
   function buildMap(){
+    walkable = Array.from({length:GRID_H}, ()=>Array(GRID_W).fill(false));
+    doors = [];
     const W=GRID_W, H=GRID_H;
     // Attacker spawn (bottom plaza)
     const spawnWidth = Math.floor(W*0.66);
@@ -59,7 +64,7 @@
 
     // South connector to mid
     carveRect(W*0.44, H-48, W*0.56, H-18);
-    carveDoor(W*0.47, H-50, W*0.53, H-48);
+    attackerDoor = {x0:W*0.47, y0:H-50, x1:W*0.53, y1:H-48}; // closed initially
 
     // Mid hub
     carveRect(W*0.36, H*0.55, W*0.64, H*0.70);
@@ -95,6 +100,11 @@
     carveDoor(W*0.40, H*0.24, W*0.42, H*0.27);
     carveDoor(W*0.58, H*0.24, W*0.60, H*0.27);
 
+    // Defender spawn room (north) and connectors
+    carveRect(W*0.42, H*0.04, W*0.58, H*0.18);
+    carveRect(W*0.30, H*0.12, W*0.70, H*0.18); // corridor linking to catwalks
+    defenderSpawnRect = {x0:W*0.42, y0:H*0.04, x1:W*0.58, y1:H*0.18};
+
     // Defender push pads
     carveRect(W*0.30, H*0.52, W*0.36, H*0.55);
     carveRect(W*0.64, H*0.52, W*0.70, H*0.55);
@@ -108,10 +118,6 @@
     sites[0].x=aC.x; sites[0].y=aC.y;
     sites[1].x=bC.x; sites[1].y=bC.y;
 
-    defenderRects = [
-      {x0:W*0.06, y0:H*0.24, x1:W*0.30, y1:H*0.44},
-      {x0:W*0.70, y0:H*0.24, x1:W*0.94, y1:H*0.44}
-    ];
   }
 
   // ---- Grid helpers
@@ -319,7 +325,7 @@
         else { const s=sites[attackerSiteIndex]; target={x:s.x + this.form.ox*0.6, y:s.y + this.form.oy*0.6}; }
       } else {
         if(bomb.state==='planted'){ const s=sites[bomb.siteIndex]; target={x:s.x + this.form.ox*0.4, y:s.y + this.form.oy*0.4}; }
-        else { const s=sites[ nearestSite(this) ]; target={x:s.x + this.form.ox*0.6, y:s.y + this.form.oy*0.6}; }
+        else { const idx = (this.siteIndex!=null)?this.siteIndex:nearestSite(this); const s=sites[idx]; target={x:s.x + this.form.ox*0.6, y:s.y + this.form.oy*0.6}; }
       }
 
       // Repathing + micro jitter
@@ -459,18 +465,6 @@
     }
   }
 
-  // ---- HUD
-  function fmt(t){ t=Math.max(0,Math.ceil(t)); const m=(t/60)|0, s=t%60|0; return m+':' + (s<10?'0':'')+s; }
-  function updateHUD(){
-    const att=attackers.filter(a=>a.alive).length, def=defenders.filter(a=>a.alive).length;
-    hud.textContent = `ATT: ${att}/10  |  DEF: ${def}/10  |  Timer: ${fmt(roundTime)}`;
-    if(bomb.state==='planted') statusEl.textContent=`Bomb: ${(TIME_TO_EXPLODE-bomb.timer).toFixed(1)}s`;
-    else if(bomb.state==='defused') statusEl.textContent='Bomb defused!';
-    else if(bomb.state==='exploded') statusEl.textContent='Bomb exploded!';
-    else if(bomb.state==='planting') statusEl.textContent='Planting...';
-    else statusEl.textContent='';
-  }
-
   function checkRoundEnd(){
     const attAlive=attackers.some(a=>a.alive), defAlive=defenders.some(d=>d.alive);
     if(bomb.state==='planted'){ if(!defAlive){ resultMessage='Attackers win: all defenders eliminated!'; return true; } return false; }
@@ -509,6 +503,8 @@
     bomb.state='idle'; bomb.carrier=null; bomb.siteIndex=null; bomb.plantProgress=0; bomb.defuseProgress=0; bomb.timer=0;
     lastFightTime=-999; lastFightPos={x:0,y:0}; roundTime=ROUND_TIME; roundOver=false; resultMessage='';
     attackerSiteIndex = Math.random()<0.5?0:1;
+    preRoundTime = 10;
+    attackerDoorOpen = false;
 
     buildMap();
 
@@ -519,9 +515,10 @@
     }
     // Defenders
     for(let i=0;i<10;i++){
-      const rect = defenderRects[i%defenderRects.length];
-      const p = sampleInRect(rect);
-      const d = new Agent(p.x,p.y,TEAM_DEFENDER,'#3EA0FF',i,10); defenders.push(d); agents.push(d);
+      const p = sampleInRect(defenderSpawnRect);
+      const d = new Agent(p.x,p.y,TEAM_DEFENDER,'#3EA0FF',i,10);
+      d.siteIndex = Math.random()<0.5?0:1;
+      defenders.push(d); agents.push(d);
     }
 
     // Bomb
@@ -538,7 +535,15 @@
   }
 
   function update(dt){
-    if(bomb.state!=='planted') roundTime-=dt;
+    if(preRoundTime>0){
+      preRoundTime-=dt;
+      if(preRoundTime<=0 && !attackerDoorOpen){
+        carveDoor(attackerDoor.x0, attackerDoor.y0, attackerDoor.x1, attackerDoor.y1);
+        attackerDoorOpen = true;
+        for(const a of attackers) a.repathTimer=0;
+      }
+    } else if(bomb.state!=='planted'){ roundTime-=dt; }
+
     for(const a of agents) a.update(dt);
     separation();
     updateBullets(dt);
@@ -579,7 +584,8 @@
     function fmt(t){ t=Math.max(0,Math.ceil(t)); const m=(t/60)|0, s=t%60|0; return m+':' + (s<10?'0':'')+s; }
     const att=attackers.filter(a=>a.alive).length, def=defenders.filter(a=>a.alive).length;
     hud.textContent = `ATT: ${att}/10  |  DEF: ${def}/10  |  Timer: ${fmt(roundTime)}`;
-    if(bomb.state==='planted') statusEl.textContent=`Bomb: ${(TIME_TO_EXPLODE-bomb.timer).toFixed(1)}s`;
+    if(preRoundTime>0) statusEl.textContent=`Prep: ${preRoundTime.toFixed(1)}s`;
+    else if(bomb.state==='planted') statusEl.textContent=`Bomb: ${(TIME_TO_EXPLODE-bomb.timer).toFixed(1)}s`;
     else if(bomb.state==='defused') statusEl.textContent='Bomb defused!';
     else if(bomb.state==='exploded') statusEl.textContent='Bomb exploded!';
     else if(bomb.state==='planting') statusEl.textContent='Planting...';
