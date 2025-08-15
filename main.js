@@ -27,11 +27,11 @@
   const DOOR_T = 8; // tiles; >= 96px openings
 
   // Defender lockdown ability via sticky mini devices
-  const ANCHOR_BULLET_DAMAGE = 1;
+  const ANCHOR_BULLET_DAMAGE = 28;
   const MINI_DEVICE_RADIUS = 36;
-  const MINI_DEVICE_DPS = 8;
+  const MINI_DEVICE_DPS = 12;
   const MINI_DEVICE_LIFETIME = 2;
-  const MINI_DEVICE_SLOW = 0.9; // 20% speed reduction
+  const MINI_DEVICE_SLOW = 0.85; // 20% speed reduction
 
   // Vision cone rendering
   const VISION_FOV = Math.PI/4;
@@ -657,7 +657,7 @@
         const d=(t.x-b.x)**2+(t.y-b.y)**2;
         if(d < (AGENT_RADIUS+BULLET_RADIUS)**2){
           let killed=false;
-          if(!b.mini && Math.random() < (b.owner.duelist ? 0.5 : 0.3)){
+          if(!b.mini && Math.random() < (b.owner.duelist ? 0.35 : 0.15)){
             t.hp = 0;
             killed = true;
           } else {
