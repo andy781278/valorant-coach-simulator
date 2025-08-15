@@ -1,4 +1,4 @@
-// v9.1 — Duelists, extra anchor, headshots
+// v9.2 — Duelists, extra anchor, headshots, physical bomb pickups
 (function(){
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -17,6 +17,7 @@
   const WORLD_W = GRID_W * TILE, WORLD_H = GRID_H * TILE;
 
   const AGENT_RADIUS = 10;
+  const BOMB_RADIUS = 6;
   const AI_SPEED = 85;
   const BULLET_SPEED = 1000, BULLET_RADIUS=3, BULLET_LIFETIME=2.0, BULLET_DAMAGE=38;
   const BULLET_TRACER=14;
@@ -319,7 +320,7 @@
 
   // ---- Game State
   let attackers=[], defenders=[], agents=[], bullets=[], devices=[];
-  const bomb={ state:'idle', carrier:null, siteIndex:null, plantProgress:0, defuseProgress:0, defuser:null, timer:0 };
+  const bomb={ state:'idle', carrier:null, siteIndex:null, plantProgress:0, defuseProgress:0, defuser:null, timer:0, x:0, y:0 };
   let attackerSiteIndex=-1, attackerStrategy='rush', defaultPhase=null, strategyTimer=0,
       lastFightTime=-999, lastFightPos={x:0,y:0}, roundTime=ROUND_TIME;
   let gameRunning=false, lastTime=0, roundOver=false, resultMessage='';
@@ -461,7 +462,9 @@
       // Objective
       let target={x:this.x,y:this.y};
       if(this.team===TEAM_ATTACKER){
-        if(bomb.state==='planted'){
+        if(bomb.state==='idle' && !bomb.carrier){
+          target={x:bomb.x, y:bomb.y};
+        } else if(bomb.state==='planted'){
           const s=sites[bomb.siteIndex];
           target={x:s.x + this.form.ox*0.35, y:s.y + this.form.oy*0.35};
         } else if(attackerStrategy==='rush'){
@@ -576,6 +579,13 @@
         this.x=Math.max(AGENT_RADIUS, Math.min(WORLD_W-AGENT_RADIUS, this.x));
         this.y=Math.max(AGENT_RADIUS, Math.min(WORLD_H-AGENT_RADIUS, this.y));
       }
+      if(this.team===TEAM_ATTACKER && !this.hasBomb && bomb.state==='idle' && !bomb.carrier){
+        const d=(this.x-bomb.x)**2+(this.y-bomb.y)**2;
+        if(d < (AGENT_RADIUS+BOMB_RADIUS)**2){
+          this.hasBomb=true;
+          bomb.carrier=this;
+        }
+      }
 
       let desiredFacing=this.facing;
       if(engaged && t){
@@ -666,7 +676,15 @@
           }
           if(killed){
             t.dead=true;
-            if(t.hasBomb){ t.hasBomb=false; const aliveA=attackers.filter(a=>a.alive); if(aliveA.length){ aliveA[0].hasBomb=true; bomb.carrier=aliveA[0]; } }
+            if(t.hasBomb){
+              t.hasBomb=false;
+              bomb.state='idle';
+              bomb.carrier=null;
+              bomb.x=t.x; bomb.y=t.y;
+              bomb.siteIndex=null; bomb.plantProgress=0;
+              bomb.defuseProgress=0; bomb.defuser=null;
+              for(const a of attackers){ if(a.alive) a.repathTimer=0; }
+            }
           }
           if(b.mini){
             devices.push({x:b.x,y:b.y,r:MINI_DEVICE_RADIUS,dps:MINI_DEVICE_DPS,life:MINI_DEVICE_LIFETIME});
@@ -693,8 +711,12 @@
             a.dead=true;
             if(a.hasBomb){
               a.hasBomb=false;
-              const aliveA=attackers.filter(z=>z.alive);
-              if(aliveA.length){ aliveA[0].hasBomb=true; bomb.carrier=aliveA[0]; }
+              bomb.state='idle';
+              bomb.carrier=null;
+              bomb.x=a.x; bomb.y=a.y;
+              bomb.siteIndex=null; bomb.plantProgress=0;
+              bomb.defuseProgress=0; bomb.defuser=null;
+              for(const z of attackers){ if(z.alive) z.repathTimer=0; }
             }
           }
         }
@@ -817,8 +839,10 @@
       }
     }
 
-    // Bomb
-    const carrier=attackers[Math.floor(Math.random()*attackers.length)]; carrier.hasBomb=true; bomb.carrier=carrier;
+    // Bomb spawns in attacker territory and must be picked up
+    const bp = sampleInRect(attackerSpawnRect);
+    bomb.x = bp.x; bomb.y = bp.y;
+    bomb.carrier = null;
 
     centerCameraOn(WORLD_W/2, WORLD_H/2);
     gameRunning=true; lastTime=performance.now(); requestAnimationFrame(loop);
@@ -913,6 +937,10 @@
       ctx.stroke();
       ctx.beginPath(); ctx.arc(b.x,b.y,BULLET_RADIUS,0,Math.PI*2); ctx.fill();
     }
+      if(bomb.state==='idle' && !bomb.carrier){
+        ctx.fillStyle='#FFFF00';
+        ctx.beginPath(); ctx.arc(bomb.x,bomb.y,BOMB_RADIUS,0,Math.PI*2); ctx.fill();
+      }
       // agents
       for(const a of agents) a.draw();
       // planting / defusing bars
