@@ -633,7 +633,7 @@
         ctx.fillStyle=this.dead?'#45464d':this.color;
         ctx.beginPath(); ctx.arc(this.x,this.y,AGENT_RADIUS,0,Math.PI*2); ctx.fill();
         ctx.lineWidth=2; ctx.strokeStyle=this.team===TEAM_ATTACKER?'#FF5A5A':'#3EA0FF'; ctx.stroke();
-        if(this.hasBomb){ ctx.fillStyle='#FFD23F'; ctx.beginPath(); ctx.arc(this.x,this.y,5,0,Math.PI*2); ctx.fill(); }
+        if(this.hasBomb){ ctx.fillStyle='#FFFF00'; ctx.beginPath(); ctx.arc(this.x,this.y,5,0,Math.PI*2); ctx.fill(); }
         if(this.alive){
           const w=20,h=4;
           ctx.fillStyle='#000';
@@ -791,7 +791,7 @@
       const p = sampleInRect(attackerSpawnRect);
       const a = new Agent(p.x,p.y,TEAM_ATTACKER,'#808080',i,5);
       a.defaultSite = (attackerStrategy==='default') ? (i<3?0:1) : attackerSiteIndex;
-      if(i===attackerDuelist){ a.duelist=true; a.color='#FFFF00'; a.baseSpeed=1.25; }
+      if(i===attackerDuelist){ a.duelist=true; a.color='#800080'; a.baseSpeed=1.25; }
       attackers.push(a); agents.push(a);
     }
     // Defenders
@@ -802,7 +802,7 @@
       const d = new Agent(p.x,p.y,TEAM_DEFENDER,'#808080',i,5);
       d.siteIndex = Math.random()<0.5?0:1;
       let pushChance = 0.3;
-      if(i===defenderDuelist){ d.duelist=true; d.color='#FFFF00'; d.baseSpeed=1.25; pushChance=0.7; }
+      if(i===defenderDuelist){ d.duelist=true; d.color='#800080'; d.baseSpeed=1.25; pushChance=0.7; }
       if(Math.random()<pushChance){ d.pushTarget = sampleInRect(midPushRect); }
       defenders.push(d); agents.push(d);
     }
@@ -812,7 +812,7 @@
         const idx=Math.floor(Math.random()*anchorCandidates.length);
         const a=anchorCandidates.splice(idx,1)[0];
         a.special=true;
-        a.color='#FFD23F';
+        a.color='#00FF00';
         if(chokePoints.length){ a.chokePoint = chokePoints[Math.floor(Math.random()*chokePoints.length)]; }
       }
     }
@@ -919,7 +919,7 @@
       if(bomb.state==='planting' && bomb.carrier){
         const p=bomb.carrier; const w=30, h=5;
         ctx.fillStyle='#000'; ctx.fillRect(p.x-w/2, p.y-AGENT_RADIUS-16, w, h);
-        ctx.fillStyle='#FFD23F'; ctx.fillRect(p.x-w/2, p.y-AGENT_RADIUS-16, w*bomb.plantProgress, h);
+          ctx.fillStyle='#FFFF00'; ctx.fillRect(p.x-w/2, p.y-AGENT_RADIUS-16, w*bomb.plantProgress, h);
       }
       if(bomb.state==='planted' && bomb.defuseProgress>0 && bomb.defuser){
         const d=bomb.defuser; const w=30, h=5;
