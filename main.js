@@ -1,4 +1,4 @@
-// v8.0 — Gun barrel visuals & fight strafing
+// v8.1 — Gun barrel visuals, fight strafing, and anchor slowdown
 (function(){
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -18,19 +18,20 @@
 
   const AGENT_RADIUS = 10;
   const AI_SPEED = 85;
-  const BULLET_SPEED = 1000, BULLET_RADIUS=3, BULLET_LIFETIME=2.0, BULLET_DAMAGE=28;
+  const BULLET_SPEED = 1000, BULLET_RADIUS=3, BULLET_LIFETIME=2.0, BULLET_DAMAGE=38;
   const BULLET_TRACER=14;
-  const SHOOT_COOLDOWN=0.55, DETECTION_RANGE=540;
-  const BULLET_INACCURACY = 0.15; // radians of random spread
+  const SHOOT_COOLDOWN=0.3, DETECTION_RANGE=540;
+  const BULLET_INACCURACY = 0.1; // radians of random spread
   const ROUND_TIME=90, PLANT_TIME=3, DEFUSE_TIME=4, TIME_TO_EXPLODE=30;
   const TEAM_ATTACKER='ATT', TEAM_DEFENDER='DEF';
   const DOOR_T = 8; // tiles; >= 96px openings
 
   // Defender lockdown ability via sticky mini devices
-  const ANCHOR_BULLET_DAMAGE = 16;
-  const MINI_DEVICE_RADIUS = 48;
-  const MINI_DEVICE_DPS = 16;
-  const MINI_DEVICE_LIFETIME = 3;
+  const ANCHOR_BULLET_DAMAGE = 1;
+  const MINI_DEVICE_RADIUS = 36;
+  const MINI_DEVICE_DPS = 8;
+  const MINI_DEVICE_LIFETIME = 2;
+  const MINI_DEVICE_SLOW = 0.9; // 20% speed reduction
 
   // Vision cone rendering
   const VISION_FOV = Math.PI/4;
@@ -404,6 +405,7 @@
       this.facing = 0;
       this.special = false;
       this.waiting = false;
+      this.speedMult = 1;
     }
     get alive(){ return !this.dead; }
     shoot(){
@@ -474,9 +476,7 @@
           }
         }
       } else {
-        if(this.special && this.chokePoint && bomb.state!=='planted'){
-          target={x:this.chokePoint.x, y:this.chokePoint.y};
-        } else if(this.pushTarget && !this.pushDone && bomb.state!=='planted'){
+        if(this.pushTarget && !this.pushDone && bomb.state!=='planted'){
           if(preRoundTime>0){
             const idx = (this.siteIndex!=null)?this.siteIndex:nearestSite(this);
             const s=sites[idx];
@@ -564,7 +564,7 @@
       // Normalize & step with predictive sliding
       const ml=Math.hypot(mvx,mvy); if(ml>0){
         mvx/=ml; mvy/=ml;
-        const step = AI_SPEED*dt;
+        const step = AI_SPEED*dt*this.speedMult;
         this.tryStep(mvx*step, mvy*step);
         // Keep inside world
         this.x=Math.max(AGENT_RADIUS, Math.min(WORLD_W-AGENT_RADIUS, this.x));
@@ -665,6 +665,7 @@
   }
 
   function updateDevices(dt){
+    for(const a of attackers){ a.speedMult = 1; }
     for(let i=devices.length-1;i>=0;i--){
       const dev=devices[i];
       dev.life-=dt;
@@ -674,6 +675,7 @@
         const d2=(a.x-dev.x)**2+(a.y-dev.y)**2;
         if(d2 < dev.r*dev.r){
           a.hp -= dev.dps*dt;
+          a.speedMult = Math.min(a.speedMult, MINI_DEVICE_SLOW);
           if(a.hp<=0){
             a.dead=true;
             if(a.hasBomb){
@@ -853,10 +855,10 @@
       }
     }
 
+    updateDevices(dt);
     for(const a of agents) a.update(dt);
     separation();
     updateBullets(dt);
-    updateDevices(dt);
 
     // Plant/defuse edge checks
     if(bomb.state==='planting'){
