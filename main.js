@@ -18,20 +18,20 @@
 
   const AGENT_RADIUS = 10;
   const AI_SPEED = 85;
-  const BULLET_SPEED = 1000, BULLET_RADIUS=3, BULLET_LIFETIME=2.0, BULLET_DAMAGE=28;
+  const BULLET_SPEED = 1000, BULLET_RADIUS=3, BULLET_LIFETIME=2.0, BULLET_DAMAGE=38;
   const BULLET_TRACER=14;
-  const SHOOT_COOLDOWN=0.55, DETECTION_RANGE=540;
-  const BULLET_INACCURACY = 0.15; // radians of random spread
+  const SHOOT_COOLDOWN=0.3, DETECTION_RANGE=540;
+  const BULLET_INACCURACY = 0.1; // radians of random spread
   const ROUND_TIME=90, PLANT_TIME=3, DEFUSE_TIME=4, TIME_TO_EXPLODE=30;
   const TEAM_ATTACKER='ATT', TEAM_DEFENDER='DEF';
   const DOOR_T = 8; // tiles; >= 96px openings
 
   // Defender lockdown ability via sticky mini devices
-  const ANCHOR_BULLET_DAMAGE = 16;
-  const MINI_DEVICE_RADIUS = 48;
-  const MINI_DEVICE_DPS = 16;
-  const MINI_DEVICE_LIFETIME = 3;
-  const MINI_DEVICE_SLOW = 0.8; // 20% speed reduction
+  const ANCHOR_BULLET_DAMAGE = 1;
+  const MINI_DEVICE_RADIUS = 36;
+  const MINI_DEVICE_DPS = 8;
+  const MINI_DEVICE_LIFETIME = 2;
+  const MINI_DEVICE_SLOW = 0.9; // 20% speed reduction
 
   // Vision cone rendering
   const VISION_FOV = Math.PI/4;
