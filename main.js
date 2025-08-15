@@ -338,21 +338,20 @@
   addEventListener('keydown',e=>{
     const k=e.key.toLowerCase();
     camKeys[k]=true;
-    if(k==='='||k==='+') camera.zoom*=1.1;
-    if(k==='-'||k==='_') camera.zoom/=1.1;
     if(k==='='||k==='+'||k==='-'||k==='_'){
-      camera.zoom=Math.max(0.5, Math.min(3, camera.zoom));
       const cx=camera.x+camera.w()/2, cy=camera.y+camera.h()/2;
+      if(k==='='||k==='+') camera.zoom*=1.1;
+      if(k==='-'||k==='_') camera.zoom/=1.1;
+      camera.zoom=Math.max(0.5, Math.min(3, camera.zoom));
       camera.x=cx-camera.w()/2; camera.y=cy-camera.h()/2;
       clampCamera();
     }
   });
   addEventListener('keyup',e=>{ camKeys[e.key.toLowerCase()]=false; });
   addEventListener('wheel',e=>{
+    const cx=camera.x+camera.w()/2, cy=camera.y+camera.h()/2;
     if(e.deltaY<0) camera.zoom*=1.1; else camera.zoom/=1.1;
     camera.zoom=Math.max(0.5, Math.min(3, camera.zoom));
-    // keep center
-    const cx=camera.x+camera.w()/2, cy=camera.y+camera.h()/2;
     camera.x=cx-camera.w()/2; camera.y=cy-camera.h()/2;
     clampCamera();
     e.preventDefault();
@@ -608,13 +607,13 @@
         }
         ctx.fillStyle=this.dead?'#45464d':this.color;
         ctx.beginPath(); ctx.arc(this.x,this.y,AGENT_RADIUS,0,Math.PI*2); ctx.fill();
-        ctx.lineWidth=2; ctx.strokeStyle=this.special?'#FFD23F':(this.team===TEAM_ATTACKER?'#4EE1C1':'#3EA0FF'); ctx.stroke();
-        if(this.hasBomb){ ctx.fillStyle='#FFD23F'; ctx.beginPath(); ctx.arc(this.x,this.y-AGENT_RADIUS-6,5,0,Math.PI*2); ctx.fill(); }
+        ctx.lineWidth=2; ctx.strokeStyle=this.special?'#FFD23F':(this.team===TEAM_ATTACKER?'#FF5A5A':'#3EA0FF'); ctx.stroke();
+        if(this.hasBomb){ ctx.fillStyle='#FFD23F'; ctx.beginPath(); ctx.arc(this.x,this.y,5,0,Math.PI*2); ctx.fill(); }
         if(this.alive){
           const w=20,h=4;
           ctx.fillStyle='#000';
           ctx.fillRect(this.x-w/2,this.y+AGENT_RADIUS+6,w,h);
-          ctx.fillStyle=this.team===TEAM_ATTACKER?'#4EE1C1':'#3EA0FF';
+          ctx.fillStyle=this.team===TEAM_ATTACKER?'#FF5A5A':'#3EA0FF';
           ctx.fillRect(this.x-w/2,this.y+AGENT_RADIUS+6,w*(this.hp/100),h);
         }
       }
@@ -755,7 +754,7 @@
     // Attackers
     for(let i=0;i<5;i++){
       const p = sampleInRect(attackerSpawnRect);
-      const a = new Agent(p.x,p.y,TEAM_ATTACKER,'#FF5A5A',i,5);
+      const a = new Agent(p.x,p.y,TEAM_ATTACKER,'#808080',i,5);
       a.defaultSite = (attackerStrategy==='default') ? (i<3?0:1) : attackerSiteIndex;
       attackers.push(a); agents.push(a);
     }
@@ -763,7 +762,7 @@
     const midPushRect = {x0:GRID_W*0.36, y0:GRID_H*0.55, x1:GRID_W*0.64, y1:GRID_H*0.70};
     for(let i=0;i<5;i++){
       const p = sampleInRect(defenderSpawnRect);
-      const d = new Agent(p.x,p.y,TEAM_DEFENDER,'#3EA0FF',i,5);
+      const d = new Agent(p.x,p.y,TEAM_DEFENDER,'#808080',i,5);
       d.siteIndex = Math.random()<0.5?0:1;
       if(Math.random()<0.3){ d.pushTarget = sampleInRect(midPushRect); }
       defenders.push(d); agents.push(d);
@@ -772,6 +771,7 @@
     if(anchors.length){
       const a = anchors[Math.floor(Math.random()*anchors.length)];
       a.special=true;
+      a.color='#FFD23F';
       if(chokePoints.length){ a.chokePoint = chokePoints[Math.floor(Math.random()*chokePoints.length)]; }
     }
 
