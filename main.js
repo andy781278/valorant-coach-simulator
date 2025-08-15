@@ -19,6 +19,7 @@
   const AGENT_RADIUS = 10;
   const AI_SPEED = 85;
   const BULLET_SPEED = 700, BULLET_RADIUS=3, BULLET_LIFETIME=2.0, BULLET_DAMAGE=28;
+  const BULLET_TRACER=14;
   const SHOOT_COOLDOWN=0.55, DETECTION_RANGE=540;
   const BULLET_INACCURACY = 0.3; // radians of random spread
   const ROUND_TIME=90, PLANT_TIME=3, DEFUSE_TIME=4, TIME_TO_EXPLODE=30;
@@ -76,6 +77,11 @@
     for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){
       if(x>=0&&y>=0&&x<GRID_W&&y<GRID_H) walkable[y][x]=false;
     }
+  }
+
+  function lerpAngle(a,b,t){
+    const diff=((b-a+Math.PI*3)%(Math.PI*2))-Math.PI;
+    return a+diff*t;
   }
 
   function buildMap(){
@@ -565,11 +571,13 @@
         this.y=Math.max(AGENT_RADIUS, Math.min(WORLD_H-AGENT_RADIUS, this.y));
       }
 
+      let desiredFacing=this.facing;
       if(engaged && t){
-        this.facing = Math.atan2(t.y-this.y, t.x-this.x);
+        desiredFacing = Math.atan2(t.y-this.y, t.x-this.x);
       } else if(ml>0){
-        this.facing = Math.atan2(mvy,mvx);
+        desiredFacing = Math.atan2(mvy,mvx);
       }
+      this.facing = lerpAngle(this.facing, desiredFacing, 0.15);
 
       // Combat
       this.shootCooldown-=dt; if(this.shootCooldown<0) this.shootCooldown=0;
@@ -608,9 +616,6 @@
           ctx.closePath();
           ctx.fill();
         }
-        ctx.fillStyle=this.dead?'#45464d':this.color;
-        ctx.beginPath(); ctx.arc(this.x,this.y,AGENT_RADIUS,0,Math.PI*2); ctx.fill();
-        ctx.lineWidth=2; ctx.strokeStyle=this.team===TEAM_ATTACKER?'#FF5A5A':'#3EA0FF'; ctx.stroke();
         if(this.alive){
           ctx.save();
           ctx.translate(this.x,this.y);
@@ -619,6 +624,9 @@
           ctx.fillRect(AGENT_RADIUS*0.4,-2,AGENT_RADIUS+6,4);
           ctx.restore();
         }
+        ctx.fillStyle=this.dead?'#45464d':this.color;
+        ctx.beginPath(); ctx.arc(this.x,this.y,AGENT_RADIUS,0,Math.PI*2); ctx.fill();
+        ctx.lineWidth=2; ctx.strokeStyle=this.team===TEAM_ATTACKER?'#FF5A5A':'#3EA0FF'; ctx.stroke();
         if(this.hasBomb){ ctx.fillStyle='#FFD23F'; ctx.beginPath(); ctx.arc(this.x,this.y,5,0,Math.PI*2); ctx.fill(); }
         if(this.alive){
           const w=20,h=4;
@@ -874,7 +882,14 @@
     drawMap();
     drawDevices();
     // bullets
-    ctx.fillStyle='#fff5a0'; for(const b of bullets){ ctx.beginPath(); ctx.arc(b.x,b.y,BULLET_RADIUS,0,Math.PI*2); ctx.fill(); }
+    ctx.strokeStyle='#fff5a0'; ctx.lineWidth=2; ctx.fillStyle='#fff5a0';
+    for(const b of bullets){
+      ctx.beginPath();
+      ctx.moveTo(b.x - b.dx*BULLET_TRACER, b.y - b.dy*BULLET_TRACER);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(b.x,b.y,BULLET_RADIUS,0,Math.PI*2); ctx.fill();
+    }
       // agents
       for(const a of agents) a.draw();
       // planting / defusing bars
