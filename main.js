@@ -1,4 +1,4 @@
-// v7.7 — Spawn barrier & mid expansion
+// v8.0 — Gun barrel visuals & fight strafing
 (function(){
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -538,9 +538,9 @@
         }
       }
 
-      // Movement toward node
+      // Movement toward node when not in combat
       let mvx=0,mvy=0;
-      if(this.pathIdx<this.path.length){
+      if(!engaged && this.pathIdx<this.path.length){
         const node=this.path[this.pathIdx], dx=node.x-this.x, dy=node.y-this.y, d=Math.hypot(dx,dy);
         if(d>0){ mvx=dx/d; mvy=dy/d; }
       }
@@ -549,9 +549,10 @@
       mvx += rep.x*0.18; mvy += rep.y*0.18;
 
       // Combat strafing only when engaged
-      if(engaged){
-        this.strafeT+=dt; const s=Math.sin(this.strafeT*10+this.strafePhase)*0.45;
-        const px=-mvy, py=mvx; mvx=mvx*0.9 + px*s; mvy=mvy*0.9 + py*s;
+      if(engaged && t){
+        this.strafeT+=dt; const s=Math.sin(this.strafeT*10+this.strafePhase)*0.7;
+        const ang=Math.atan2(t.y-this.y, t.x-this.x) + Math.PI/2;
+        mvx += Math.cos(ang)*s; mvy += Math.sin(ang)*s;
       }
 
       // Normalize & step with predictive sliding
@@ -610,6 +611,14 @@
         ctx.fillStyle=this.dead?'#45464d':this.color;
         ctx.beginPath(); ctx.arc(this.x,this.y,AGENT_RADIUS,0,Math.PI*2); ctx.fill();
         ctx.lineWidth=2; ctx.strokeStyle=this.team===TEAM_ATTACKER?'#FF5A5A':'#3EA0FF'; ctx.stroke();
+        if(this.alive){
+          ctx.save();
+          ctx.translate(this.x,this.y);
+          ctx.rotate(this.facing);
+          ctx.fillStyle='#888';
+          ctx.fillRect(AGENT_RADIUS*0.4,-2,AGENT_RADIUS+6,4);
+          ctx.restore();
+        }
         if(this.hasBomb){ ctx.fillStyle='#FFD23F'; ctx.beginPath(); ctx.arc(this.x,this.y,5,0,Math.PI*2); ctx.fill(); }
         if(this.alive){
           const w=20,h=4;
