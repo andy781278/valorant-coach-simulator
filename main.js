@@ -15,7 +15,7 @@
   const WORLD_W = GRID_W * TILE, WORLD_H = GRID_H * TILE;
 
   const AGENT_RADIUS = 10;
-  const AI_SPEED = 170;
+  const AI_SPEED = 85;
   const BULLET_SPEED = 700, BULLET_RADIUS=3, BULLET_LIFETIME=2.0, BULLET_DAMAGE=28;
   const SHOOT_COOLDOWN=0.55, DETECTION_RANGE=540;
   const BULLET_INACCURACY = 0.3; // radians of random spread
@@ -25,13 +25,13 @@
 
   // Defender lockdown ability via sticky mini devices
   const ANCHOR_BULLET_DAMAGE = 10;
-  const MINI_DEVICE_RADIUS = 36;
+  const MINI_DEVICE_RADIUS = 48;
   const MINI_DEVICE_DPS = 8;
   const MINI_DEVICE_LIFETIME = 4;
 
   // Vision cone rendering
   const VISION_FOV = Math.PI/4;
-  const VISION_ALPHA = 0.08;
+  const VISION_ALPHA = 0.03;
 
   // ---- Map data
   let walkable = Array.from({length:GRID_H}, ()=>Array(GRID_W).fill(false));
@@ -467,12 +467,18 @@
           }
         }
       } else {
-        if(this.special && this.chokePoint && preRoundTime>0){
+        if(this.special && this.chokePoint && bomb.state!=='planted'){
           target={x:this.chokePoint.x, y:this.chokePoint.y};
         } else if(this.pushTarget && !this.pushDone && bomb.state!=='planted'){
-          target={x:this.pushTarget.x, y:this.pushTarget.y};
-          const dPush=(this.x-this.pushTarget.x)**2 + (this.y-this.pushTarget.y)**2;
-          if(dPush < 400) this.pushDone=true;
+          if(preRoundTime>0){
+            const idx = (this.siteIndex!=null)?this.siteIndex:nearestSite(this);
+            const s=sites[idx];
+            target={x:s.x + this.form.ox*0.6, y:s.y + this.form.oy*0.6};
+          } else {
+            target={x:this.pushTarget.x, y:this.pushTarget.y};
+            const dPush=(this.x-this.pushTarget.x)**2 + (this.y-this.pushTarget.y)**2;
+            if(dPush < 400) this.pushDone=true;
+          }
         } else if(bomb.state==='planted'){
           const s=sites[bomb.siteIndex];
           target={x:s.x + this.form.ox*0.4, y:s.y + this.form.oy*0.4};
