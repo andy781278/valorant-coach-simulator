@@ -937,24 +937,24 @@
       ctx.stroke();
       ctx.beginPath(); ctx.arc(b.x,b.y,BULLET_RADIUS,0,Math.PI*2); ctx.fill();
     }
-      if(bomb.state==='idle' && !bomb.carrier){
-        ctx.fillStyle='#FFFF00';
-        ctx.beginPath(); ctx.arc(bomb.x,bomb.y,BOMB_RADIUS,0,Math.PI*2); ctx.fill();
-      }
-      // agents
-      for(const a of agents) a.draw();
-      // planting / defusing bars
-      if(bomb.state==='planting' && bomb.carrier){
-        const p=bomb.carrier; const w=30, h=5;
-        ctx.fillStyle='#000'; ctx.fillRect(p.x-w/2, p.y-AGENT_RADIUS-16, w, h);
-          ctx.fillStyle='#FFFF00'; ctx.fillRect(p.x-w/2, p.y-AGENT_RADIUS-16, w*bomb.plantProgress, h);
-      }
-      if(bomb.state==='planted' && bomb.defuseProgress>0 && bomb.defuser){
-        const d=bomb.defuser; const w=30, h=5;
-        ctx.fillStyle='#000'; ctx.fillRect(d.x-w/2, d.y-AGENT_RADIUS-16, w, h);
-        ctx.fillStyle='#3EA0FF'; ctx.fillRect(d.x-w/2, d.y-AGENT_RADIUS-16, w*bomb.defuseProgress, h);
-      }
-      // sites labels drawn in drawMap
+    // agents
+    for(const a of agents) a.draw();
+    if(bomb.state==='idle' && !bomb.carrier){
+      ctx.fillStyle='#FFFF00';
+      ctx.beginPath(); ctx.arc(bomb.x,bomb.y,BOMB_RADIUS,0,Math.PI*2); ctx.fill();
+    }
+    // planting / defusing bars
+    if(bomb.state==='planting' && bomb.carrier){
+      const p=bomb.carrier; const w=30, h=5;
+      ctx.fillStyle='#000'; ctx.fillRect(p.x-w/2, p.y-AGENT_RADIUS-16, w, h);
+      ctx.fillStyle='#FFFF00'; ctx.fillRect(p.x-w/2, p.y-AGENT_RADIUS-16, w*bomb.plantProgress, h);
+    }
+    if(bomb.state==='planted' && bomb.defuseProgress>0 && bomb.defuser){
+      const d=bomb.defuser; const w=30, h=5;
+      ctx.fillStyle='#000'; ctx.fillRect(d.x-w/2, d.y-AGENT_RADIUS-16, w, h);
+      ctx.fillStyle='#3EA0FF'; ctx.fillRect(d.x-w/2, d.y-AGENT_RADIUS-16, w*bomb.defuseProgress, h);
+    }
+    // sites labels drawn in drawMap
     ctx.restore();
 
     // HUD
