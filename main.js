@@ -18,7 +18,7 @@
 
   const AGENT_RADIUS = 10;
   const AI_SPEED = 85;
-  const BULLET_SPEED = 700, BULLET_RADIUS=3, BULLET_LIFETIME=2.0, BULLET_DAMAGE=28;
+  const BULLET_SPEED = 1000, BULLET_RADIUS=3, BULLET_LIFETIME=2.0, BULLET_DAMAGE=28;
   const BULLET_TRACER=14;
   const SHOOT_COOLDOWN=0.55, DETECTION_RANGE=540;
   const BULLET_INACCURACY = 0.15; // radians of random spread
@@ -27,14 +27,14 @@
   const DOOR_T = 8; // tiles; >= 96px openings
 
   // Defender lockdown ability via sticky mini devices
-  const ANCHOR_BULLET_DAMAGE = 10;
+  const ANCHOR_BULLET_DAMAGE = 28;
   const MINI_DEVICE_RADIUS = 48;
-  const MINI_DEVICE_DPS = 8;
-  const MINI_DEVICE_LIFETIME = 4;
+  const MINI_DEVICE_DPS = 16;
+  const MINI_DEVICE_LIFETIME = 5;
 
   // Vision cone rendering
   const VISION_FOV = Math.PI/4;
-  const VISION_ALPHA = 0.03;
+  const VISION_ALPHA = 0.01;
 
   // ---- Map data
   let walkable = Array.from({length:GRID_H}, ()=>Array(GRID_W).fill(false));
