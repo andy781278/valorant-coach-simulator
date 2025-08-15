@@ -34,6 +34,8 @@
   let attackerDoor = null;
   let preRoundTime = 0;
   let attackerDoorOpen = false;
+  let attackerWins = 0, defenderWins = 0;
+  let roundWinner = null;
 
   // Helpers
   function i(v){ return Math.max(0, Math.min(v|0, 9999)); }
@@ -73,7 +75,7 @@
 
     // South connector to mid
     carveRect(W*0.44, H-68, W*0.56, H-20);
-    attackerDoor = {x0:W*0.44, y0:H-20, x1:W*0.56, y1:H-18}; // closed initially
+    attackerDoor = {x0:W*0.44, y0:H-20, x1:W*0.56, y1:H-16}; // closed initially (taller)
 
     // Mid hub
     carveRect(W*0.36, H*0.55, W*0.64, H*0.70);
@@ -115,7 +117,7 @@
     carveDoor(W*0.58, H*0.18, W*0.64, H*0.18+2);
 
     // Mid expansion
-    carveDoor(W*0.12, H*0.42, W*0.88, H*0.42+2); // A ↔ B across mid
+    carveDoor(W*0.12, H*0.40, W*0.88, H*0.40+2); // A ↔ B across mid (shifted up)
     carveDoor(W*0.47, H*0.35, W*0.53, H-68);      // Attacker spawn ↔ mid
 
     // Defender spawn room (north) and connectors
@@ -567,12 +569,15 @@
 
   function checkRoundEnd(){
     const attAlive=attackers.some(a=>a.alive), defAlive=defenders.some(d=>d.alive);
-    if(bomb.state==='planted'){ if(!defAlive){ resultMessage='Attackers win: all defenders eliminated!'; return true; } return false; }
-    if(bomb.state==='defused'){ resultMessage='Defenders win: bomb defused!'; return true; }
-    if(bomb.state==='exploded'){ resultMessage='Attackers win: bomb exploded!'; return true; }
-    if(!attAlive){ resultMessage='Defenders win: all attackers eliminated!'; return true; }
-    if(!defAlive && bomb.state==='idle'){ resultMessage='Attackers win: all defenders eliminated!'; return true; }
-    if(roundTime<=0 && bomb.state!=='planted'){ resultMessage='Defenders win: time ran out!'; return true; }
+    if(bomb.state==='planted'){
+      if(!defAlive){ resultMessage='Attackers win: all defenders eliminated!'; roundWinner=TEAM_ATTACKER; return true; }
+      return false;
+    }
+    if(bomb.state==='defused'){ resultMessage='Defenders win: bomb defused!'; roundWinner=TEAM_DEFENDER; return true; }
+    if(bomb.state==='exploded'){ resultMessage='Attackers win: bomb exploded!'; roundWinner=TEAM_ATTACKER; return true; }
+    if(!attAlive){ resultMessage='Defenders win: all attackers eliminated!'; roundWinner=TEAM_DEFENDER; return true; }
+    if(!defAlive && bomb.state==='idle'){ resultMessage='Attackers win: all defenders eliminated!'; roundWinner=TEAM_ATTACKER; return true; }
+    if(roundTime<=0 && bomb.state!=='planted'){ resultMessage='Defenders win: time ran out!'; roundWinner=TEAM_DEFENDER; return true; }
     return false;
   }
 
@@ -598,7 +603,9 @@
     return {x:WORLD_W/2,y:WORLD_H/2};
   }
 
-  function startGame(){
+  function startGame(resetScores=false){
+    if(resetScores){ attackerWins=0; defenderWins=0; }
+    roundWinner=null;
     attackers=[]; defenders=[]; agents=[]; bullets=[];
     bomb.state='idle'; bomb.carrier=null; bomb.siteIndex=null; bomb.plantProgress=0; bomb.defuseProgress=0; bomb.defuser=null; bomb.timer=0;
     lastFightTime=-999; lastFightPos={x:0,y:0}; roundTime=ROUND_TIME; roundOver=false; resultMessage='';
@@ -637,8 +644,20 @@
 
   function showEndOverlay(msg){
     overlay.style.display='flex';
-    overlay.innerHTML = `<div id="panel" style="text-align:center"><h2>${msg}</h2><button id="rst">Restart</button></div>`;
-    document.getElementById('rst').onclick=()=>{ overlay.style.display='none'; startGame(); };
+    overlay.innerHTML = `<div id="panel" style="text-align:center"><h2>${msg}</h2><p>Final Score: ${attackerWins}-${defenderWins}</p><button id="rst">Restart</button></div>`;
+    document.getElementById('rst').onclick=()=>{ overlay.style.display='none'; startGame(true); };
+  }
+
+  function handleRoundEnd(){
+    if(roundWinner===TEAM_ATTACKER) attackerWins++;
+    else if(roundWinner===TEAM_DEFENDER) defenderWins++;
+    if(attackerWins>=5 || defenderWins>=5){
+      showEndOverlay(`${roundWinner===TEAM_ATTACKER?'Attackers':'Defenders'} win the game!`);
+    } else {
+      overlay.style.display='flex';
+      overlay.innerHTML = `<div id="panel" style="text-align:center"><h2>${resultMessage}</h2><p>Score: ${attackerWins}-${defenderWins}</p></div>`;
+      setTimeout(()=>{ overlay.style.display='none'; startGame(); },3000);
+    }
   }
 
   function update(dt){
@@ -685,7 +704,7 @@
       }
     if(bomb.state==='planted'){ bomb.timer += dt; if(bomb.timer>=TIME_TO_EXPLODE) bomb.state='exploded'; }
 
-    if(!roundOver && checkRoundEnd()){ roundOver=true; gameRunning=false; setTimeout(()=>showEndOverlay(resultMessage), 300); }
+    if(!roundOver && checkRoundEnd()){ roundOver=true; gameRunning=false; setTimeout(handleRoundEnd, 300); }
   }
 
   function draw(){
@@ -715,7 +734,7 @@
     // HUD
     function fmt(t){ t=Math.max(0,Math.ceil(t)); const m=(t/60)|0, s=t%60|0; return m+':' + (s<10?'0':'')+s; }
     const att=attackers.filter(a=>a.alive).length, def=defenders.filter(a=>a.alive).length;
-    hud.textContent = `ATT: ${att}/10  |  DEF: ${def}/10  |  Timer: ${fmt(roundTime)}`;
+    hud.textContent = `ATT: ${att}/10  |  DEF: ${def}/10  |  Timer: ${fmt(roundTime)}  |  Score: ${attackerWins}-${defenderWins}`;
     if(preRoundTime>0) statusEl.textContent=`Prep: ${preRoundTime.toFixed(1)}s`;
     else if(bomb.state==='planted') statusEl.textContent=`Bomb: ${(TIME_TO_EXPLODE-bomb.timer).toFixed(1)}s`;
     else if(bomb.state==='defused') statusEl.textContent='Bomb defused!';
@@ -735,6 +754,6 @@
   // Doorway overlay toggle
   addEventListener('keydown', (e)=>{ if(e.key==='e'||e.key==='E'){ showDoors=!showDoors; }});
 
-  startBtn.addEventListener('click', ()=>{ overlay.style.display='none'; startGame(); });
+  startBtn.addEventListener('click', ()=>{ overlay.style.display='none'; startGame(true); });
 
 })();
