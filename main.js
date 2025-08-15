@@ -18,7 +18,7 @@
   const AI_SPEED = 170;
   const BULLET_SPEED = 700, BULLET_RADIUS=3, BULLET_LIFETIME=2.0, BULLET_DAMAGE=28;
   const SHOOT_COOLDOWN=0.55, DETECTION_RANGE=540;
-  const BULLET_INACCURACY = 0.1; // radians of random spread
+  const BULLET_INACCURACY = 0.3; // radians of random spread
   const ROUND_TIME=90, PLANT_TIME=3, DEFUSE_TIME=4, TIME_TO_EXPLODE=30;
   const TEAM_ATTACKER='ATT', TEAM_DEFENDER='DEF';
   const DOOR_T = 8; // tiles; >= 96px openings
@@ -68,8 +68,8 @@
     // Attacker spawn (bottom plaza)
     const spawnWidth = Math.floor(W*0.66);
     const sx0 = (W - spawnWidth)/2, sx1 = (W + spawnWidth)/2;
-    carveRect(sx0, H-18, sx1, H-6);
-    attackerSpawnRect = {x0:sx0, y0:H-18, x1:sx1, y1:H-6};
+    carveRect(sx0, H-16, sx1, H-6);
+    attackerSpawnRect = {x0:sx0, y0:H-16, x1:sx1, y1:H-6};
 
     // South connector to mid
     carveRect(W*0.44, H-68, W*0.56, H-20);
@@ -344,6 +344,7 @@
       this.form = {ox:Math.cos(angle)*140, oy:Math.sin(angle)*140};
       this.lastProgress=1e9; this.progressTimer=0;
       this.id=idx + Math.random(); // for micro jitter
+      this.pushTarget = null; this.pushDone=false;
     }
     get alive(){ return !this.dead; }
     shoot(){
@@ -400,7 +401,11 @@
           }
         }
       } else {
-        if(bomb.state==='planted'){
+        if(this.pushTarget && !this.pushDone && bomb.state!=='planted'){
+          target={x:this.pushTarget.x, y:this.pushTarget.y};
+          const dPush=(this.x-this.pushTarget.x)**2 + (this.y-this.pushTarget.y)**2;
+          if(dPush < 400) this.pushDone=true;
+        } else if(bomb.state==='planted'){
           const s=sites[bomb.siteIndex];
           target={x:s.x + this.form.ox*0.4, y:s.y + this.form.oy*0.4};
         } else {
@@ -614,10 +619,12 @@
       attackers.push(a); agents.push(a);
     }
     // Defenders
+    const midPushRect = {x0:GRID_W*0.36, y0:GRID_H*0.55, x1:GRID_W*0.64, y1:GRID_H*0.70};
     for(let i=0;i<10;i++){
       const p = sampleInRect(defenderSpawnRect);
       const d = new Agent(p.x,p.y,TEAM_DEFENDER,'#3EA0FF',i,10);
       d.siteIndex = Math.random()<0.5?0:1;
+      if(Math.random()<0.3){ d.pushTarget = sampleInRect(midPushRect); }
       defenders.push(d); agents.push(d);
     }
 
