@@ -23,6 +23,14 @@
   const TEAM_ATTACKER='ATT', TEAM_DEFENDER='DEF';
   const DOOR_T = 8; // tiles; >= 96px openings
 
+  // Defender lockdown ability
+  const LOCKDOWN_RADIUS = 80;
+  const LOCKDOWN_DPS = 25;
+
+  // Vision cone rendering
+  const VISION_FOV = Math.PI/4;
+  const VISION_ALPHA = 0.05;
+
   // ---- Map data
   let walkable = Array.from({length:GRID_H}, ()=>Array(GRID_W).fill(false));
   let doors = []; // {x0,y0,x1,y1} in tiles for draw/debug
@@ -183,6 +191,27 @@
     return true;
   }
 
+  // Find the nearest reachable point toward a goal before hitting a barrier
+  function nearestWalkableTowards(sx,sy,gx,gy){
+    const dx=gx-sx, dy=gy-sy, dist=Math.hypot(dx,dy);
+    const steps=Math.max(1, Math.ceil(dist/(TILE/2)));
+    let last={x:sx,y:sy};
+    for(let i=1;i<=steps;i++){
+      const t=i/steps;
+      const nx=sx+dx*t, ny=sy+dy*t;
+      const {cx,cy}=worldToCell(nx,ny);
+      if(!isWalkCell(cx,cy)){
+        const len=Math.hypot(last.x-sx,last.y-sy);
+        const back=Math.min(AGENT_RADIUS+4,len);
+        const bx=last.x - dx/dist*back;
+        const by=last.y - dy/dist*back;
+        return {x:bx, y:by};
+      }
+      last={x:nx,y:ny};
+    }
+    return null;
+  }
+
   // Wall repulsion: a small field pushing away from blocked tiles
   function wallRepulse(x,y){
     const {cx,cy}=worldToCell(x,y);
@@ -270,7 +299,7 @@
   const nav = new Pathfinder();
 
   // ---- Game State
-  let attackers=[], defenders=[], agents=[], bullets=[];
+  let attackers=[], defenders=[], agents=[], bullets=[], devices=[];
   const bomb={ state:'idle', carrier:null, siteIndex:null, plantProgress:0, defuseProgress:0, defuser:null, timer:0 };
   let attackerSiteIndex=-1, attackerStrategy='rush', defaultPhase=null, strategyTimer=0,
       lastFightTime=-999, lastFightPos={x:0,y:0}, roundTime=ROUND_TIME;
@@ -355,6 +384,9 @@
       this.lastProgress=1e9; this.progressTimer=0;
       this.id=idx + Math.random(); // for micro jitter
       this.pushTarget = null; this.pushDone=false;
+      this.facing = 0;
+      this.special = false;
+      this.device = null;
     }
     get alive(){ return !this.dead; }
     shoot(){
@@ -432,7 +464,14 @@
         // micro jitter to distribute goals
         const jitter=8; const jx=(Math.sin(this.id*3.7)+Math.random()-0.5)*jitter, jy=(Math.cos(this.id*2.9)+Math.random()-0.5)*jitter;
         this.goal={x:target.x + jx, y:target.y + jy};
-        const p = nav.astar({x:this.x,y:this.y}, this.goal);
+        let p = nav.astar({x:this.x,y:this.y}, this.goal);
+        if(!p){
+          const stop = nearestWalkableTowards(this.x,this.y,this.goal.x,this.goal.y);
+          if(stop){
+            const alt = nav.astar({x:this.x,y:this.y}, stop);
+            p = alt && alt.length ? alt : [stop];
+          }
+        }
         this.path = (p && p.length)?p:[this.goal];
         this.pathIdx=0;
         this.repathTimer = this.hasBomb?0.35:0.9;
@@ -488,9 +527,29 @@
         this.y=Math.max(AGENT_RADIUS, Math.min(WORLD_H-AGENT_RADIUS, this.y));
       }
 
+      if(engaged && t){
+        this.facing = Math.atan2(t.y-this.y, t.x-this.x);
+      } else if(ml>0){
+        this.facing = Math.atan2(mvy,mvx);
+      }
+
       // Combat
       this.shootCooldown-=dt; if(this.shootCooldown<0) this.shootCooldown=0;
       if(engaged && this.shootCooldown<=0) this.shoot();
+
+      // Special lockdown ability
+      if(this.special){
+        if(!this.device && preRoundTime<=0){
+          this.device={x:this.x,y:this.y,r:LOCKDOWN_RADIUS,active:false};
+          devices.push(this.device);
+        } else if(this.device && !this.device.active){
+          for(const a of attackers){
+            if(!a.alive) continue;
+            const d2=(a.x-this.device.x)**2+(a.y-this.device.y)**2;
+            if(d2 < this.device.r*this.device.r){ this.device.active=true; break; }
+          }
+        }
+      }
 
         // Plant / Defuse
         if(this.team===TEAM_ATTACKER && this.hasBomb && attackerSiteIndex>=0){
@@ -517,9 +576,17 @@
       this.wasEngaged=engaged;
     }
       draw(){
+        if(this.alive){
+          ctx.fillStyle=`rgba(255,255,255,${VISION_ALPHA})`;
+          ctx.beginPath();
+          ctx.moveTo(this.x,this.y);
+          ctx.arc(this.x,this.y,DETECTION_RANGE,this.facing-VISION_FOV,this.facing+VISION_FOV);
+          ctx.closePath();
+          ctx.fill();
+        }
         ctx.fillStyle=this.dead?'#45464d':this.color;
         ctx.beginPath(); ctx.arc(this.x,this.y,AGENT_RADIUS,0,Math.PI*2); ctx.fill();
-        ctx.lineWidth=2; ctx.strokeStyle=this.team===TEAM_ATTACKER?'#4EE1C1':'#3EA0FF'; ctx.stroke();
+        ctx.lineWidth=2; ctx.strokeStyle=this.special?'#FFD23F':(this.team===TEAM_ATTACKER?'#4EE1C1':'#3EA0FF'); ctx.stroke();
         if(this.hasBomb){ ctx.fillStyle='#FFD23F'; ctx.beginPath(); ctx.arc(this.x,this.y-AGENT_RADIUS-6,5,0,Math.PI*2); ctx.fill(); }
         if(this.alive){
           const w=20,h=4;
@@ -554,6 +621,27 @@
     }
   }
 
+  function updateDevices(dt){
+    for(const dev of devices){
+      if(!dev.active) continue;
+      for(const a of attackers){
+        if(!a.alive) continue;
+        const d2=(a.x-dev.x)**2+(a.y-dev.y)**2;
+        if(d2 < dev.r*dev.r){
+          a.hp -= LOCKDOWN_DPS*dt;
+          if(a.hp<=0){
+            a.dead=true;
+            if(a.hasBomb){
+              a.hasBomb=false;
+              const aliveA=attackers.filter(z=>z.alive);
+              if(aliveA.length){ aliveA[0].hasBomb=true; bomb.carrier=aliveA[0]; }
+            }
+          }
+        }
+      }
+    }
+  }
+
   // ---- Drawing
   function drawMap(){
     ctx.fillStyle='#101218'; ctx.fillRect(0,0,WORLD_W,WORLD_H);
@@ -572,6 +660,20 @@
       ctx.globalAlpha=0.35; ctx.fillStyle='#ffd76a'; ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill();
       ctx.globalAlpha=1; ctx.strokeStyle='#ff9e3d'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.stroke();
       ctx.fillStyle='#ffd76a'; ctx.font='16px sans-serif'; ctx.textAlign='center'; ctx.fillText(s.name, s.x, s.y+5);
+    }
+  }
+
+  function drawDevices(){
+    for(const dev of devices){
+      ctx.lineWidth=2;
+      if(dev.active){
+        ctx.fillStyle='rgba(255,90,90,0.2)';
+        ctx.beginPath(); ctx.arc(dev.x,dev.y,dev.r,0,Math.PI*2); ctx.fill();
+        ctx.strokeStyle='#FF5A5A';
+      } else {
+        ctx.strokeStyle='#FFD23F';
+      }
+      ctx.beginPath(); ctx.arc(dev.x,dev.y,dev.r,0,Math.PI*2); ctx.stroke();
     }
   }
 
@@ -614,7 +716,7 @@
   function startGame(resetScores=false){
     if(resetScores){ attackerWins=0; defenderWins=0; }
     roundWinner=null;
-    attackers=[]; defenders=[]; agents=[]; bullets=[];
+    attackers=[]; defenders=[]; agents=[]; bullets=[]; devices=[];
     bomb.state='idle'; bomb.carrier=null; bomb.siteIndex=null; bomb.plantProgress=0; bomb.defuseProgress=0; bomb.defuser=null; bomb.timer=0;
     lastFightTime=-999; lastFightPos={x:0,y:0}; roundTime=ROUND_TIME; roundOver=false; resultMessage='';
     attackerStrategy = Math.random()<0.5?'rush':'default';
@@ -643,6 +745,8 @@
       if(Math.random()<0.3){ d.pushTarget = sampleInRect(midPushRect); }
       defenders.push(d); agents.push(d);
     }
+    const anchors = defenders.filter(d=>!d.pushTarget);
+    if(anchors.length){ anchors[Math.floor(Math.random()*anchors.length)].special=true; }
 
     // Bomb
     const carrier=attackers[Math.floor(Math.random()*attackers.length)]; carrier.hasBomb=true; bomb.carrier=carrier;
@@ -706,6 +810,7 @@
     for(const a of agents) a.update(dt);
     separation();
     updateBullets(dt);
+    updateDevices(dt);
 
     // Plant/defuse edge checks
     if(bomb.state==='planting'){
@@ -729,6 +834,7 @@
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x, -camera.y);
     drawMap();
+    drawDevices();
     // bullets
     ctx.fillStyle='#fff5a0'; for(const b of bullets){ ctx.beginPath(); ctx.arc(b.x,b.y,BULLET_RADIUS,0,Math.PI*2); ctx.fill(); }
       // agents
